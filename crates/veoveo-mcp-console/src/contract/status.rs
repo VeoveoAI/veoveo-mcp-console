@@ -28,10 +28,13 @@ pub struct StatusRequest {
 pub struct InstanceStatus {
     /// The instance's deployment.
     pub deployment: String,
-    /// The name of the instance's OpenShell sandbox, which its output carries.
+    /// The OpenShell workspace of the instance's sandbox.
+    pub workspace: String,
+    /// The name of the instance's OpenShell sandbox.
     pub sandbox_name: String,
-    /// The Kubernetes namespace of the sandbox's pods.
-    pub namespace: String,
+    /// OpenShell's ID of the sandbox while it exists; its output in the log store
+    /// carries it.
+    pub sandbox_id: Option<String>,
     /// The sandbox as OpenShell reports it; null while OpenShell has none.
     pub sandbox: Option<SandboxStatus>,
     /// The revision the Hub last applied to the sandbox.

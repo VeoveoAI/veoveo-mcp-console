@@ -51,7 +51,7 @@ const MISSING: &str = "repository-without-instance";
 const REPOSITORY: &str = "01a1586c-0000-7000-8000-000000000001";
 const BRANCH: &str = "dev/jose/x";
 const SANDBOX: &str = "8000-000000000002";
-const NAMESPACE: &str = "openshell-openshell-vv-factory";
+const SANDBOX_ID: &str = "fc754186-814d-4aa2-bb05-13378da8acc9";
 
 /// The status the fake Hub reports: a branch whose server crashes at start.
 fn instance() -> Value {
@@ -59,7 +59,7 @@ fn instance() -> Value {
         "deployment": "019a5b30-0000-7000-8000-000000000002",
         "workspace": "vv-factory",
         "sandboxName": SANDBOX,
-        "namespace": NAMESPACE,
+        "sandboxId": SANDBOX_ID,
         "sandbox": {
             "phase": "error",
             "exitCode": 101,
@@ -250,7 +250,8 @@ async fn status_asks_the_hub_as_the_caller_and_waits_at_most_a_minute() {
     .await
     .unwrap();
     assert_eq!(status["sandboxName"], SANDBOX);
-    assert_eq!(status["namespace"], NAMESPACE);
+    assert_eq!(status["workspace"], "vv-factory");
+    assert_eq!(status["sandboxId"], SANDBOX_ID);
     assert_eq!(status["sandbox"]["phase"], "error");
     assert_eq!(status["sandbox"]["exitCode"], 101);
     assert_eq!(status["sandbox"]["restartCount"], 3);

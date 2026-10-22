@@ -45,7 +45,7 @@ The console answers these questions for an agent, as its user:
 
 | Tool | Hub route | Result |
 |---|---|---|
-| `status(repository, branch, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=` | `InstanceStatus`: deployment, sandbox name and namespace, OpenShell's phase, exit code, restart count and conditions, the applied and serving revision, the Hub's last failure and any warning |
+| `status(repository, branch, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=` | `InstanceStatus`: deployment, workspace, sandbox name and ID, OpenShell's phase, exit code, restart count and conditions, the applied and serving revision, the Hub's last failure and any warning |
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
 
