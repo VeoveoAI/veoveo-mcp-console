@@ -52,6 +52,7 @@ The Hub decides; its refusal is the tool's error, with its status and problem de
 | Tool | Hub route |
 |---|---|
 | `status(repository, branch, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=`, waiting at most 60 s |
+| `logs(repository, branch, since?, limit?)` | `status` without waiting as the access check, then one LogsQL query of the log store for the sandbox ID it names: the workload's `agent` output and the supervisor's network denials, at most 1000 lines |
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`, or `DELETE` for the base branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` |
 
@@ -64,12 +65,14 @@ The Hub decides; its refusal is the tool's error, with its status and problem de
 | `--hub-issuer` | `VEOVEO_HUB_ISSUER` | required to serve; the tools call the Hub's routes at its origin |
 | `--registration-secret` | `VEOVEO_REGISTRATION_SECRET` | required to serve |
 | `--key-directory` | `VEOVEO_KEY_DIRECTORY` | `/var/lib/veoveo/console/keys` |
+| `--log-store-url` | `VEOVEO_LOG_STORE_URL` | `http://victorialogs.veoveo-system.svc.cluster.local:9428`, the installation's VictoriaLogs |
 | `--port` | `VEOVEO_PORT` | `8805` |
 | `--allowed-host` | `VEOVEO_ALLOWED_HOSTS` | none |
 | `--allow-loopback-hosts` | `VEOVEO_ALLOW_LOOPBACK_HOSTS` | `false` |
 
 The Hub profile of every call is the one the caller reached the console through, as
-the forwarded identity names it.
+the forwarded identity names it. The log store needs no credentials: the Hub's answer
+to `status` decides whether the caller may read an instance's output.
 
 ## Registration And Offline Description
 
@@ -117,7 +120,9 @@ way on macOS and Linux.
 
 `openshell/run` builds the branch and replaces itself with the server, so a branch of
 this repository can serve as a factory instance; `.loreignore` keeps `target/` across
-`lore sync --reset`.
+`lore sync --reset`. Such an instance reaches the log store only where its sandbox's
+policy admits `victorialogs.veoveo-system.svc.cluster.local:9428`; the installation's
+base policy does not.
 
 ## License
 

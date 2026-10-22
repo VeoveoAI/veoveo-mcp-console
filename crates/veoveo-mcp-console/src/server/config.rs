@@ -43,6 +43,13 @@ pub(super) struct Args {
     /// Private deployment key and saved native registration retained across process restarts.
     #[arg(long, env = "VEOVEO_KEY_DIRECTORY", default_value_os_t = key_directory())]
     pub key_directory: PathBuf,
+    /// The installation's log store, VictoriaLogs, which `logs` queries.
+    #[arg(
+        long,
+        env = "VEOVEO_LOG_STORE_URL",
+        default_value = "http://victorialogs.veoveo-system.svc.cluster.local:9428"
+    )]
+    pub log_store_url: Url,
     #[arg(long, env = "VEOVEO_ALLOW_LOOPBACK_HOSTS", default_value_t = false)]
     pub allow_loopback_hosts: bool,
     #[arg(
@@ -108,6 +115,10 @@ mod tests {
         assert_eq!(
             args.key_directory,
             PathBuf::from("/var/lib/veoveo/console/keys")
+        );
+        assert_eq!(
+            args.log_store_url.as_str(),
+            "http://victorialogs.veoveo-system.svc.cluster.local:9428/"
         );
     }
     #[test]

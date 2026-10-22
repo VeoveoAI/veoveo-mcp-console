@@ -1,8 +1,10 @@
 //! One typed route table binds the tools, their outputs, discovery and permissions.
 //! Each tool calls the Hub for its caller, at the profile the caller came through, and
-//! reports the Hub's answer; a refusal is the tool's error.
+//! reports the Hub's answer; a refusal is the tool's error. `logs` reads the log store
+//! for the sandbox the Hub's status names.
 mod declarations;
 pub mod hub;
+pub mod logs;
 mod requirements;
 mod setup;
 
@@ -17,11 +19,12 @@ use veoveo_hub_sdk::{
 };
 
 use crate::contract::{
-    ConsolePermission, InstanceStatus, SelectRequest, Selection, StatusRequest, WatchRequest,
-    Watching,
+    ConsolePermission, DEFAULT_LOG_LINES, InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES,
+    SelectRequest, Selection, StatusRequest, WatchRequest, Watching,
 };
 pub use declarations::{REGISTRATION, registration};
 pub use hub::Hub;
+pub use logs::LogStore;
 pub use requirements::AUTHORIZATION;
 pub use setup::ConsoleContract;
 use setup::SERVER_SETUP;
@@ -30,15 +33,71 @@ pub fn force_setup() {
     LazyLock::force(&SERVER_SETUP);
 }
 
-/// The console's tools over the Hub.
+/// The console's tools over the Hub and the log store.
 #[derive(Clone)]
 pub struct ConsoleMcp {
     hub: Hub,
+    logs: LogStore,
 }
 
 impl ConsoleMcp {
-    pub fn new(hub: Hub) -> Self {
-        Self { hub }
+    pub fn new(hub: Hub, logs: LogStore) -> Self {
+        Self { hub, logs }
+    }
+
+    /// The instance's status is the access check: the Hub answers it only for a
+    /// caller with a grant on the repository, and it names the sandbox to read.
+    async fn logs(
+        &self,
+        request: LogsRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<Logs, ToolError> {
+        let (client, profile) = caller(&context)?;
+        let what = || {
+            format!(
+                "logs of `{}` branch `{}`",
+                request.repository, request.branch
+            )
+        };
+        let status = self
+            .hub
+            .status(
+                &client,
+                &profile,
+                &request.repository,
+                &request.branch,
+                Duration::ZERO,
+            )
+            .await
+            .map_err(|error| refused(format_args!("{}", what()), error))?;
+        let limit = request
+            .limit
+            .unwrap_or(DEFAULT_LOG_LINES)
+            .clamp(1, MAX_LOG_LINES);
+        // Without a sandbox there is no output to read.
+        let Some(sandbox_id) = status.sandbox_id else {
+            return Ok(Logs {
+                sandbox_name: status.sandbox_name,
+                sandbox_id: None,
+                lines: Vec::new(),
+                truncated: false,
+            });
+        };
+        let read = self
+            .logs
+            .read(
+                &sandbox_id,
+                request.since,
+                usize::try_from(limit).unwrap_or(usize::MAX),
+            )
+            .await
+            .map_err(|error| refused(format_args!("{}", what()), error))?;
+        Ok(Logs {
+            sandbox_name: status.sandbox_name,
+            sandbox_id: Some(sandbox_id),
+            lines: read.lines,
+            truncated: read.truncated,
+        })
     }
 
     async fn status(
@@ -130,6 +189,14 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
              a push, call it with `wait`; on failure, read `logs`.",
             policy(),
             |domain, request, context| async move { domain.status(request, context).await },
+        )
+        .tool::<LogsRequest, _, _>(
+            "An instance's output and OpenShell's network denials for it: the Lore sync, \
+             the build and the server, with standard output and error marked. Returns the \
+             latest `limit` lines (200, at most 1000), oldest first, across restarts; \
+             `since` starts them at a time, such as your push.",
+            policy(),
+            |domain, request, context| async move { domain.logs(request, context).await },
         )
         .tool::<SelectRequest, _, _>(
             "Serve yourself `server` from the instance of `branch` in every chat, or from \

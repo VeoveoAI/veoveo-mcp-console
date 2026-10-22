@@ -18,7 +18,7 @@ use veoveo_hub_sdk::{
 };
 use veoveo_store::{Instance, PlatformStore, StoreConfig};
 
-use crate::mcp::{self, ConsoleMcp, Hub};
+use crate::mcp::{self, ConsoleMcp, Hub, LogStore};
 
 use config::Args;
 use registration::Registered;
@@ -101,6 +101,7 @@ async fn serve(
             .context("serving requires a Hub issuer")?,
         http.clone(),
     )?;
+    let logs = LogStore::new(&args.log_store_url, http.clone())?;
     let grant = registration
         .database()
         .context("the Hub issued no database login")?;
@@ -122,7 +123,7 @@ async fn serve(
         .allowed_hosts(args.allowed_hosts.iter().cloned())
         .internal_trust(registration.access_tokens(), http.clone())?
         .calls(calls)
-        .handler(move || Hosted::new(ConsoleMcp::new(hub.clone())))
+        .handler(move || Hosted::new(ConsoleMcp::new(hub.clone(), logs.clone())))
         // The SDK's anonymous /readyz is installed only after native registration and
         // the database connection succeeded.
         .readiness(move || {

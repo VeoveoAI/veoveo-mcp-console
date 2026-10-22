@@ -40,12 +40,14 @@ default key directory `/var/lib/veoveo/console/keys` derive from it.
 The console answers these questions for an agent, as its user:
 
 - Why does this branch of a repository serve, or not?
+- What did its sandbox write, and which of its network requests were denied?
 - Which branch's instance serves me each server?
 - Which repositories does the Hub build and serve for me?
 
 | Tool | Hub route | Result |
 |---|---|---|
 | `status(repository, branch, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=` | `InstanceStatus`: deployment, workspace, sandbox name and ID, OpenShell's phase, exit code, restart count and conditions, the applied and serving revision, the Hub's last failure and any warning |
+| `logs(repository, branch, since?, limit?)` | `status` without waiting, then the log store | `Logs`: the sandbox's name and ID and its latest lines, oldest first, each with its time, its source (`stdout`, `stderr` or `denied`) and its text, and whether older lines were left out |
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
 
@@ -69,6 +71,43 @@ one by one.
 `InstanceStatus` follows the Hub's answer and reads only the fields it names; a phase
 or stage it does not know fails the call with the Hub's value.
 
+### Logs
+
+Everything a sandbox's main program writes — the Lore sync, the build and the server
+— is the output of its workload pod's container `agent`. Vector ships every
+container's output to the installation's VictoriaLogs with the pod's labels as
+`kubernetes.pod_labels.*` fields. The workload pod and its supervisor pod both carry
+the sandbox's OpenShell ID as `openshell.ai/boundary-pair`, and the supervisor writes
+OpenShell's network events as OCSF lines whose action is ` DENIED ` for a refusal.
+
+`logs` first reads the instance's status from the Hub without waiting, as the caller:
+the Hub's answer is the access check, and it names `sandboxId`. Without a sandbox it
+returns no lines. Otherwise it sends one LogsQL query to `/select/logsql/query`:
+
+```text
+"kubernetes.pod_labels.openshell.ai/boundary-pair":="<sandboxId>"
+  (kubernetes.container_name:="agent"
+   or ("kubernetes.pod_labels.openshell.ai/boundary-role":="supervisor" OCSF DENIED))
+  | sort by (_time desc) limit <limit + 1>
+  | fields _time, _msg, stream, "kubernetes.pod_labels.openshell.ai/boundary-role"
+```
+
+with `start` set to `since` when given. Values are LogsQL quoted strings. A supervisor
+record is a `denied` line; the others are `stdout` or `stderr` by Vector's `stream`.
+The latest `limit` lines (200 by default, at most 1000) return oldest first, each cut
+to 4096 bytes; the extra record sets `truncated`. A refusal of the log store is the
+tool's error with its status and up to 512 bytes of its text. The log store needs no
+credentials.
+
+Measured on 2026-10-22 against `victoriametrics/victoria-logs:v1.53.0` (the
+installation's digest) in a disposable container, with seven synthetic records shaped
+like Vector's events: the query returned exactly the sandbox's four `agent` lines on
+stdout and stderr and its supervisor's one `DENIED` line, newest first, and left out
+its supervisor's `ALLOWED` line and another sandbox's output and denial; `limit 2`
+returned the two newest; `start=2026-10-22T10:00:03Z` was inclusive; a malformed
+query answered 400 with VictoriaLogs' parse error. Not measured: the records Vector
+writes from a live sandbox.
+
 ## Architecture
 
 ### Library Features
@@ -78,12 +117,14 @@ or stage it does not know fails the call with the Hub's value.
 | `contract` | `ConsolePermission`, `ConsoleScope`, `ConsoleProvider` and the tools' requests and results | `veoveo-types`, the SDK's `contract` feature, Serde and Schemars |
 | `server` (default) | The hosted server and the binary | The SDK's `server` feature, core's store, reqwest and rmcp |
 
+The `contract` feature also depends on chrono for the times of `logs`.
+
 ### Modules
 
 | Module | Responsibility |
 |---|---|
 | `contract` | The public types a consumer compiles against |
-| `mcp` | The typed ready routes, checked setup, registration declaration and the Hub's routes (`mcp::hub`) |
+| `mcp` | The typed ready routes, checked setup, registration declaration, the Hub's routes (`mcp::hub`) and the log store (`mcp::logs`) |
 | `server` | Configuration, registration with the Hub, the database connection, the process instance and serving |
 
 ### Startup
@@ -104,7 +145,7 @@ instance whose liveness the Hub reads as the server's health.
 | Test | Holds |
 |---|---|
 | `src/contract` unit tests | The permission and scope derive from the slug |
-| `src/mcp` unit tests | Setup, documents, the registered endpoint, the declaration of calls to the Hub, route encoding and refusal text |
-| `tests/mcp.rs` | Each tool through the SDK's in-process mesh, which exchanges the caller's token as the Hub does, against fake Hub routes: method, path, query and body, the exchanged token's caller, acting server and empty permissions, refusals as tool errors, the 60-second cap and the permission every tool requires |
+| `src/mcp` unit tests | Setup, documents, the registered endpoint, the declaration of calls to the Hub, route encoding, refusal text, the log query and line bounds |
+| `tests/mcp.rs` | Each tool through the SDK's in-process mesh, which exchanges the caller's token as the Hub does, against fake Hub routes: method, path, query and body, the exchanged token's caller, acting server and empty permissions, refusals as tool errors, the 60-second cap and the permission every tool requires; `logs` against a fake log store holding records in VictoriaLogs' answer form: the status read as the access check, the exact query and `start`, sources, order, the limit and its bound, cut lines, an instance without a sandbox and the log store's refusal |
 | `src/server` unit tests | Configuration and offline registration metadata |
 | `tests/sql_confinement.rs` | The server holds no SQL outside its schema |
