@@ -35,6 +35,40 @@ default key directory `/var/lib/veoveo/console/keys` derive from it.
 | [JWT access tokens RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html) | The Hub forwards each request with an access token that names the caller, the caller's tenant and the permissions it granted. |
 | [Veoveo server registration](https://github.com/VeoveoAI/veoveo-hub-sdk) | The server initially registers through RFC 7591, resumes native RFC 7592 credentials on restart, and declares its permission in `ai.veoveo/authorization`. |
 
+## Domain Contract
+
+The console answers these questions for an agent, as its user:
+
+- Why does this branch of a repository serve, or not?
+- Which branch's instance serves me each server?
+- Which repositories does the Hub build and serve for me?
+
+| Tool | Hub route | Result |
+|---|---|---|
+| `status(repository, branch, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=` | `InstanceStatus`: deployment, sandbox name and namespace, OpenShell's phase, exit code, restart count and conditions, the applied and serving revision, the Hub's last failure and any warning |
+| `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
+| `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
+
+Every tool requires `console.use`. `{profile}` is the profile the caller reached the
+console through, as the forwarded identity names it. `wait` is capped at 60 seconds,
+as the Hub caps it; absent, it is 0.
+
+### Calls To The Hub
+
+The route builder declares `calls_hub`, so the server registers the token exchange
+grant without declaring uses of any other server. Each tool takes the bearer
+`ctx.client()?.hub_bearer()` returns: the caller's forwarded token exchanged at the
+Hub's token endpoint for the caller's profile, naming no permissions, cached for the
+request. The Hub admits it as the caller and decides each route by the caller's own
+grants: a selection is the caller's own, an instance's status and a watch need the
+caller's grant on the repository. A Hub refusal, such as 403 without a grant or 404
+without an instance, is the tool's error result, naming what was refused, the HTTP
+status and the Hub's RFC 9457 title and detail. Path segments are percent-encoded
+one by one.
+
+`InstanceStatus` follows the Hub's answer and reads only the fields it names; a phase
+or stage it does not know fails the call with the Hub's value.
+
 ## Architecture
 
 ### Library Features
@@ -49,7 +83,7 @@ default key directory `/var/lib/veoveo/console/keys` derive from it.
 | Module | Responsibility |
 |---|---|
 | `contract` | The public types a consumer compiles against |
-| `mcp` | The typed ready routes, checked setup and registration declaration |
+| `mcp` | The typed ready routes, checked setup, registration declaration and the Hub's routes (`mcp::hub`) |
 | `server` | Configuration, registration with the Hub, the database connection, the process instance and serving |
 
 ### Startup
@@ -70,6 +104,7 @@ instance whose liveness the Hub reads as the server's health.
 | Test | Holds |
 |---|---|
 | `src/contract` unit tests | The permission and scope derive from the slug |
-| `src/mcp` unit tests | Setup, documents and the registered endpoint |
+| `src/mcp` unit tests | Setup, documents, the registered endpoint, the declaration of calls to the Hub, route encoding and refusal text |
+| `tests/mcp.rs` | Each tool through the SDK's in-process mesh, which exchanges the caller's token as the Hub does, against fake Hub routes: method, path, query and body, the exchanged token's caller, acting server and empty permissions, refusals as tool errors, the 60-second cap and the permission every tool requires |
 | `src/server` unit tests | Configuration and offline registration metadata |
 | `tests/sql_confinement.rs` | The server holds no SQL outside its schema |

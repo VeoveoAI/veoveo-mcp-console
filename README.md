@@ -42,6 +42,19 @@ Hub issues, holds a process instance, from which the Hub reads its health, and
 serves MCP at `{public_base_url}/console/mcp`. It keeps no tables. Process stop
 retains the native saved registration for restart; explicit retirement deletes it.
 
+## Tools
+
+Each tool calls the Hub's own route as its caller, at the profile the caller reached
+the console through, with a token the SDK exchanges for the caller without
+permissions (`HubClient::hub_bearer`, declared by the route builder's `calls_hub`).
+The Hub decides; its refusal is the tool's error, with its status and problem detail.
+
+| Tool | Hub route |
+|---|---|
+| `status(repository, branch, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=`, waiting at most 60 s |
+| `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`, or `DELETE` for the base branch |
+| `watch(repository)` | `PUT /factory/{profile}/watch?repository=` |
+
 ## Configuration
 
 | Flag | Environment | Default |

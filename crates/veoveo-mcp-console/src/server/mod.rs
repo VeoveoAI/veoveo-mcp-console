@@ -12,15 +12,22 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use veoveo_hub_sdk::{
     PublicDeployment, TelemetryGuard,
-    hosting::{Hosted, HostedServer},
+    hosting::{Hosted, HostedServer, ServerCalls},
     init_server_telemetry,
-    registration::client::Registration,
+    registration::{ClientMetadata, client::Registration, statement::ServerKeyPair},
 };
 use veoveo_store::{Instance, PlatformStore, StoreConfig};
 
-use crate::mcp::{self, ConsoleMcp};
+use crate::mcp::{self, ConsoleMcp, Hub};
 
 use config::Args;
+use registration::Registered;
+
+/// What the tools' token exchanges sign with: the admitted metadata and its key.
+struct Signing<'a> {
+    metadata: &'a ClientMetadata,
+    key: &'a ServerKeyPair,
+}
 
 pub async fn run() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -40,14 +47,32 @@ pub async fn run() -> Result<()> {
     }
     let _telemetry: TelemetryGuard =
         init_server_telemetry(crate::component(), "info,veoveo_mcp_console=debug")?;
-    let (client, registration, http) = registration::register(&args, declaration).await?;
+    let Registered {
+        client,
+        registration,
+        metadata,
+        key,
+        http,
+    } = registration::register(&args, declaration).await?;
     // Process stop preserves saved native registration; explicit retirement and the
     // Hub's existing orphan grace remain separate.
     let issued = registration.clone();
     let mut served = None;
     let maintained = client
         .maintain(registration, async {
-            served = Some(serve(&args, &deployment, &issued, http).await);
+            served = Some(
+                serve(
+                    &args,
+                    &deployment,
+                    &issued,
+                    Signing {
+                        metadata: &metadata,
+                        key: &key,
+                    },
+                    http,
+                )
+                .await,
+            );
         })
         .await;
     if let Err(error) = maintained {
@@ -62,8 +87,20 @@ async fn serve(
     args: &Args,
     deployment: &PublicDeployment,
     registration: &Registration,
+    signing: Signing<'_>,
     http: reqwest::Client,
 ) -> Result<()> {
+    // The tools call the Hub's routes for their caller with tokens exchanged at the
+    // Hub's token endpoint, signed with the registration's key.
+    let calls = ServerCalls::discover(registration, signing.metadata, signing.key, http.clone())
+        .await
+        .context("discovering the Hub's token endpoint")?;
+    let hub = Hub::new(
+        args.hub_issuer
+            .as_ref()
+            .context("serving requires a Hub issuer")?,
+        http.clone(),
+    )?;
     let grant = registration
         .database()
         .context("the Hub issued no database login")?;
@@ -83,8 +120,9 @@ async fn serve(
     let hosted = HostedServer::for_domain::<ConsoleMcp>()
         .deployment(deployment, args.allow_loopback_hosts)?
         .allowed_hosts(args.allowed_hosts.iter().cloned())
-        .internal_trust(registration.access_tokens(), http)?
-        .handler(move || Hosted::new(ConsoleMcp))
+        .internal_trust(registration.access_tokens(), http.clone())?
+        .calls(calls)
+        .handler(move || Hosted::new(ConsoleMcp::new(hub.clone())))
         // The SDK's anonymous /readyz is installed only after native registration and
         // the database connection succeeded.
         .readiness(move || {
