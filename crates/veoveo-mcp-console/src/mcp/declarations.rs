@@ -8,14 +8,14 @@ use veoveo_hub_sdk::{
     server_contract::McpServerContract,
 };
 
-use super::setup::TemplateContract;
+use super::setup::ConsoleContract;
 
 /// The registration the server advertises. Startup sets it from the deployment before
 /// the MCP setup is built; until then Discover advertises no declarations.
 pub static REGISTRATION: OnceLock<RegistrationDeclaration> = OnceLock::new();
 
 /// The server's identity and the URL where the Hub reaches its MCP endpoint:
-/// `{public_base_url}/template/mcp`.
+/// `{public_base_url}/console/mcp`.
 pub fn registration(
     deployment: &PublicDeployment,
     deployment_id: veoveo_hub_sdk::DeploymentId,
@@ -25,7 +25,7 @@ pub fn registration(
     Ok(RegistrationDeclaration {
         deployment: deployment_id,
         slug: crate::server(),
-        uri_scheme: TemplateContract::scheme(),
+        uri_scheme: ConsoleContract::scheme(),
         version: ServerVersion::new(env!("CARGO_PKG_VERSION"))?,
         endpoint: ServerEndpoint::new(url)?,
     })
@@ -37,7 +37,7 @@ mod tests {
 
     #[test]
     fn the_registered_endpoint_is_the_mounted_mcp_url() {
-        let deployment = PublicDeployment::new("http://vv-tpl-mcp-rust.internal:8810").unwrap();
+        let deployment = PublicDeployment::new("http://vv-mcp-console.internal:8805").unwrap();
         let registration = registration(
             &deployment,
             veoveo_hub_sdk::hosting::testing::deployment_id(),
@@ -45,9 +45,9 @@ mod tests {
         .unwrap();
         assert_eq!(
             registration.endpoint.url().as_str(),
-            "http://vv-tpl-mcp-rust.internal:8810/template/mcp"
+            "http://vv-mcp-console.internal:8805/console/mcp"
         );
-        assert_eq!(registration.slug.as_str(), "template");
-        assert_eq!(registration.uri_scheme.as_str(), "template");
+        assert_eq!(registration.slug.as_str(), crate::SLUG);
+        assert_eq!(registration.uri_scheme.as_str(), crate::SLUG);
     }
 }

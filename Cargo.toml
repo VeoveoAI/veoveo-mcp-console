@@ -7,13 +7,12 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 license = "Apache-2.0"
-repository = "https://github.com/VeoveoAI/veoveo-template-mcp-rust"
+repository = "https://github.com/VeoveoAI/veoveo-mcp-console"
 publish = false
 
 [workspace.dependencies]
 tempfile = "=3.27.0"
 # veoveo-core, pinned to one revision for every core crate.
-veoveo-fixtures = { git = "https://github.com/VeoveoAI/veoveo-core", rev = "1dd9994073515a85f90c3b5c71598366ab804a28" }
 veoveo-store = { git = "https://github.com/VeoveoAI/veoveo-core", rev = "1dd9994073515a85f90c3b5c71598366ab804a28" }
 veoveo-types = { git = "https://github.com/VeoveoAI/veoveo-core", rev = "1dd9994073515a85f90c3b5c71598366ab804a28" }
 # The Rust SDK for Veoveo MCP servers: the contract feature for declarations, the server
@@ -32,16 +31,15 @@ secrecy = "0.10.3"
 tracing = "0.1.44"
 url = "=2.5.8"
 
-schemars = { version = "1.2.2", features = ["uuid1"] }
+schemars = { version = "1.2.2", features = ["chrono04"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
-# PostgreSQL 18 through the same sqlx release and features as veoveo-core. `sqlx-toml`
-# reads the crate's migration table from its `sqlx.toml`.
-sqlx = { version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls-ring-native-roots", "uuid", "chrono", "json", "migrate", "macros", "sqlx-toml"] }
 thiserror = "=2.0.21"
 tokio = "1.53.1"
-# The exact release veoveo-types pins.
-uuid = { version = "=1.25.0", default-features = false, features = ["serde", "std", "v7"] }
+# The SDK's HTTP framework release; the tests serve a fake Hub and log store with it.
+axum = "0.8.9"
+# Log times, as the log store reports them.
+chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

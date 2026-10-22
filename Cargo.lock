@@ -3542,24 +3542,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "veoveo-fixtures"
-version = "0.1.0"
-source = "git+https://github.com/VeoveoAI/veoveo-core?rev=1dd9994073515a85f90c3b5c71598366ab804a28#1dd9994073515a85f90c3b5c71598366ab804a28"
-dependencies = [
- "hex",
- "pg_query",
- "secrecy",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "sqlx",
- "tokio",
- "uuid",
- "veoveo-store",
- "veoveo-types",
-]
-
-[[package]]
 name = "veoveo-hub-sdk"
 version = "0.1.0"
 source = "git+https://github.com/VeoveoAI/veoveo-hub-sdk?rev=6c881e08936bef1234dd2275b3c000fec1756543#6c881e08936bef1234dd2275b3c000fec1756543"
@@ -3630,6 +3612,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-mcp-console"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "reqwest",
+ "rmcp",
+ "rustls",
+ "schemars",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
+ "veoveo-hub-sdk",
+ "veoveo-store",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-store"
 version = "0.1.0"
 source = "git+https://github.com/VeoveoAI/veoveo-core?rev=1dd9994073515a85f90c3b5c71598366ab804a28#1dd9994073515a85f90c3b5c71598366ab804a28"
@@ -3687,33 +3695,6 @@ dependencies = [
  "schemars",
  "serde",
  "sqlx",
- "veoveo-types",
-]
-
-[[package]]
-name = "veoveo-template-mcp-rust"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "dotenvy",
- "reqwest",
- "rmcp",
- "rustls",
- "schemars",
- "secrecy",
- "serde",
- "serde_json",
- "sqlx",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
- "url",
- "uuid",
- "veoveo-fixtures",
- "veoveo-hub-sdk",
- "veoveo-store",
  "veoveo-types",
 ]
 

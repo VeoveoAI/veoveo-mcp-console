@@ -66,12 +66,12 @@ mod tests {
     fn offline_prepare_reuses_worker_key_and_creates_no_registration_credentials() {
         let directory = tempfile::tempdir().unwrap();
         let args = Args::try_parse_from([
-            "veoveo-template-mcp-rust",
+            "veoveo-mcp-console",
             "--describe-registration",
             "--deployment-id",
             "019a5b30-0000-7000-8000-000000000001",
             "--public-base-url",
-            "https://template.example",
+            "https://console.example",
             "--key-directory",
             directory.path().to_str().unwrap(),
         ])

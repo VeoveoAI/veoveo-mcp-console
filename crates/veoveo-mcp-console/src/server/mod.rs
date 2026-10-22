@@ -1,6 +1,8 @@
 //! The hosted process: register with the Hub, connect with the registration's
-//! database login, hold a process instance, migrate, then serve MCP until SIGTERM or
-//! Ctrl-C or until the instance loses its lock. Process stop preserves native resume credentials.
+//! database login, hold a process instance, then serve MCP until SIGTERM or Ctrl-C or
+//! until the instance loses its lock. The server keeps no state of its own; the
+//! process instance is what the Hub reads its health from. Process stop preserves
+//! native resume credentials.
 mod config;
 mod registration;
 
@@ -16,10 +18,7 @@ use veoveo_hub_sdk::{
 };
 use veoveo_store::{Instance, PlatformStore, StoreConfig};
 
-use crate::{
-    mcp::{self, TemplateMcp},
-    store::ItemStore,
-};
+use crate::mcp::{self, ConsoleMcp};
 
 use config::Args;
 
@@ -39,10 +38,8 @@ pub async fn run() -> Result<()> {
         println!();
         return Ok(());
     }
-    let _telemetry: TelemetryGuard = init_server_telemetry(
-        "veoveo-template-mcp-rust",
-        "info,veoveo_template_mcp_rust=debug",
-    )?;
+    let _telemetry: TelemetryGuard =
+        init_server_telemetry(crate::component(), "info,veoveo_mcp_console=debug")?;
     let (client, registration, http) = registration::register(&args, declaration).await?;
     // Process stop preserves saved native registration; explicit retirement and the
     // Hub's existing orphan grace remain separate.
@@ -59,8 +56,8 @@ pub async fn run() -> Result<()> {
     served.context("the registration ended before serving finished")?
 }
 
-/// Connect with the registration's database login, migrate the server's schema and
-/// serve until SIGTERM or Ctrl-C, or until the process instance loses its lock.
+/// Connect with the registration's database login, hold a process instance and serve
+/// until SIGTERM or Ctrl-C, or until the process instance loses its lock.
 async fn serve(
     args: &Args,
     deployment: &PublicDeployment,
@@ -82,19 +79,14 @@ async fn serve(
             .await
             .context("starting the process instance")?,
     );
-    store
-        .migrate_server(&crate::server(), crate::migrator())
-        .await
-        .context("applying the server's migrations")?;
-    let items = ItemStore::new(store.clone());
     let ready_instance = instance.clone();
-    let hosted = HostedServer::for_domain::<TemplateMcp>()
+    let hosted = HostedServer::for_domain::<ConsoleMcp>()
         .deployment(deployment, args.allow_loopback_hosts)?
         .allowed_hosts(args.allowed_hosts.iter().cloned())
         .internal_trust(registration.access_tokens(), http)?
-        .handler(move || Hosted::new(TemplateMcp::new(items.clone())))
-        // The SDK's existing anonymous /readyz is installed only after native
-        // registration, database connection and schema initialization succeeded.
+        .handler(move || Hosted::new(ConsoleMcp))
+        // The SDK's anonymous /readyz is installed only after native registration and
+        // the database connection succeeded.
         .readiness(move || {
             let instance = ready_instance.clone();
             async move { !instance.is_lost() }

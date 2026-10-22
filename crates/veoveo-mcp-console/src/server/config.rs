@@ -9,20 +9,21 @@ use url::Url;
 use veoveo_hub_sdk::{PublicDeployment, parse_allowed_host_authority};
 
 #[derive(Parser)]
-#[command(name = "veoveo-template-mcp-rust", about = "Template MCP server")]
+#[command(name = "veoveo-mcp-console", about = "Console, the Hub MCP server")]
 pub(super) struct Args {
     /// Print native public metadata without Hub, database or telemetry startup.
     #[arg(long)]
     pub describe_registration: bool,
     #[arg(long, env = "VEOVEO_DEPLOYMENT_ID")]
     pub deployment_id: veoveo_hub_sdk::DeploymentId,
-    #[arg(long, env = "VEOVEO_PORT", default_value_t = 8810)]
+    #[arg(long, env = "VEOVEO_PORT", default_value_t = 8805)]
     pub port: u16,
     /// The origin where the Hub reaches the server; it serves MCP at
-    /// `{public_base_url}/template/mcp` and registers that URL.
+    /// `{public_base_url}/console/mcp` and registers that URL.
     #[arg(long, env = "VEOVEO_PUBLIC_BASE_URL")]
     pub public_base_url: String,
-    /// The Hub's RFC 8414 issuer; registration discovers its endpoint from there.
+    /// The Hub's RFC 8414 issuer; registration discovers its endpoint from there, and
+    /// the tools call the Hub's routes at its origin.
     #[arg(
         long,
         env = "VEOVEO_HUB_ISSUER",
@@ -40,11 +41,7 @@ pub(super) struct Args {
     )]
     pub registration_secret: Option<SecretString>,
     /// Private deployment key and saved native registration retained across process restarts.
-    #[arg(
-        long,
-        env = "VEOVEO_KEY_DIRECTORY",
-        default_value = "/var/lib/veoveo/template/keys"
-    )]
+    #[arg(long, env = "VEOVEO_KEY_DIRECTORY", default_value_os_t = key_directory())]
     pub key_directory: PathBuf,
     #[arg(long, env = "VEOVEO_ALLOW_LOOPBACK_HOSTS", default_value_t = false)]
     pub allow_loopback_hosts: bool,
@@ -64,6 +61,11 @@ impl Args {
     }
 }
 
+/// `/var/lib/veoveo/{slug}/keys`, where the runtime image keeps the key directory.
+fn key_directory() -> PathBuf {
+    PathBuf::from(format!("/var/lib/veoveo/{}/keys", crate::SLUG))
+}
+
 fn parse_secret(value: &str) -> Result<SecretString, String> {
     (!value.is_empty())
         .then(|| SecretString::from(value))
@@ -74,7 +76,7 @@ fn parse_allowed_host(value: &str) -> Result<String, String> {
     let value = value.trim();
     parse_allowed_host_authority(value)
         .map(|_| value.to_owned())
-        .ok_or_else(|| "expected a host authority such as vv-tpl-mcp-rust.internal:8810".to_owned())
+        .ok_or_else(|| "expected a host authority such as vv-mcp-console.internal:8805".to_owned())
 }
 
 #[cfg(test)]
@@ -84,11 +86,11 @@ mod tests {
     #[test]
     fn the_hub_and_the_secret_are_required() {
         let base = [
-            "veoveo-template-mcp-rust",
+            "veoveo-mcp-console",
             "--deployment-id",
             "019a5b30-0000-7000-8000-000000000001",
             "--public-base-url",
-            "http://vv-tpl-mcp-rust.internal:8810",
+            "http://vv-mcp-console.internal:8805",
         ];
         assert!(Args::try_parse_from(base).is_err());
         let args = Args::try_parse_from(base.into_iter().chain([
@@ -97,22 +99,26 @@ mod tests {
             "--registration-secret",
             "placeholder",
             "--allowed-host",
-            "vv-tpl-mcp-rust.internal:8810",
+            "vv-mcp-console.internal:8805",
         ]))
         .unwrap();
-        assert_eq!(args.port, 8810);
-        assert_eq!(args.allowed_hosts, ["vv-tpl-mcp-rust.internal:8810"]);
+        assert_eq!(args.port, 8805);
+        assert_eq!(args.allowed_hosts, ["vv-mcp-console.internal:8805"]);
         assert!(args.public_deployment().is_ok());
+        assert_eq!(
+            args.key_directory,
+            PathBuf::from("/var/lib/veoveo/console/keys")
+        );
     }
     #[test]
     fn offline_description_requires_no_hub_or_admission_credentials() {
         let args = Args::try_parse_from([
-            "veoveo-template-mcp-rust",
+            "veoveo-mcp-console",
             "--describe-registration",
             "--deployment-id",
             "019a5b30-0000-7000-8000-000000000001",
             "--public-base-url",
-            "https://template.example",
+            "https://console.example",
         ])
         .unwrap();
         assert!(args.describe_registration);
@@ -120,10 +126,10 @@ mod tests {
         assert!(args.registration_secret.is_none());
         assert!(
             Args::try_parse_from([
-                "veoveo-template-mcp-rust",
+                "veoveo-mcp-console",
                 "--describe-registration",
                 "--public-base-url",
-                "https://template.example"
+                "https://console.example"
             ])
             .is_err()
         );

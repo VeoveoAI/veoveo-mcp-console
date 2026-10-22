@@ -3,7 +3,7 @@
 # from the branch's checkout after every fetch and supplies the server's deployment,
 # Hub and registration settings in the environment.
 set -e
-cargo build --locked --release --bin veoveo-template-mcp-rust
+cargo build --locked --release --bin veoveo-mcp-console
 export VEOVEO_KEY_DIRECTORY=/sandbox/state/keys
 mkdir -p "$VEOVEO_KEY_DIRECTORY"
-exec target/release/veoveo-template-mcp-rust
+exec target/release/veoveo-mcp-console

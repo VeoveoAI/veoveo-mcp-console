@@ -2,7 +2,7 @@
 # Stages: dev is the development environment, check is the single gate, build compiles the
 # release binary, and runtime is the deployable image.
 
-ARG COMPONENT=veoveo-template-mcp-rust
+ARG COMPONENT=veoveo-mcp-console
 
 FROM rust:1.99.0-trixie@sha256:6ff07edce8775d0f64be7aba9197229407301bddf2054d62c27b541a6238a181 AS dev
 # PostgreSQL 18.6 from the PGDG repository, whose signing key Debian's postgresql-common
@@ -36,9 +36,9 @@ WORKDIR /home/sandbox/src
 COPY --chown=sandbox:sandbox . .
 
 FROM source AS check
-# The committed .sqlx query metadata must match the crate's queries against the kernel
-# migrations of the pinned veoveo-core checkout and the crate's own migrations, applied
-# in the server's schema.
+# The committed .sqlx query metadata must match the queries of the core crates the
+# server compiles against the kernel migrations of the pinned veoveo-core checkout. The
+# server has no queries or migrations of its own.
 RUN cargo fetch --locked \
     && store="$(echo /usr/local/cargo/git/checkouts/veoveo-core-*/*/platform/store)" \
     && initdb --pgdata /tmp/sqlx/data --username postgres --auth=trust --no-instructions --no-sync \
@@ -47,11 +47,6 @@ RUN cargo fetch --locked \
     && createdb --host 127.0.0.1 --username postgres veoveo \
     && DATABASE_URL=postgres://postgres@127.0.0.1/veoveo cargo sqlx migrate run \
         --source "${store}/migrations" --config "${store}/sqlx.toml" \
-    && psql --host 127.0.0.1 --username postgres --dbname veoveo --quiet \
-        --command "SELECT kernel.ensure_server('template')" \
-    && DATABASE_URL=postgres://postgres@127.0.0.1/veoveo cargo sqlx migrate run \
-        --source crates/veoveo-template-mcp-rust/migrations \
-        --config crates/veoveo-template-mcp-rust/sqlx.toml \
     && DATABASE_URL=postgres://postgres@127.0.0.1/veoveo cargo sqlx prepare --workspace --check \
         -- --all-targets --all-features \
     && pg_ctl stop --pgdata /tmp/sqlx/data --mode fast --wait --silent \
@@ -74,13 +69,13 @@ ARG REVISION
 # The registration key persists under the key directory; mount a volume there to keep the
 # server's namespace across container restarts.
 RUN useradd --system --uid 10001 --no-create-home "${COMPONENT}" \
-    && mkdir -p /var/lib/veoveo/template/keys \
-    && chown -R "${COMPONENT}:${COMPONENT}" /var/lib/veoveo/template
+    && mkdir -p /var/lib/veoveo/console/keys \
+    && chown -R "${COMPONENT}:${COMPONENT}" /var/lib/veoveo/console
 COPY --from=build "/home/sandbox/${COMPONENT}" "/usr/local/bin/${COMPONENT}"
 USER ${COMPONENT}
-EXPOSE 8810
+EXPOSE 8805
 # The exec form cannot expand build arguments, so the binary path is fixed here.
-ENTRYPOINT ["/usr/local/bin/veoveo-template-mcp-rust"]
+ENTRYPOINT ["/usr/local/bin/veoveo-mcp-console"]
 LABEL org.opencontainers.image.title="${COMPONENT}" \
       org.opencontainers.image.source="https://github.com/VeoveoAI/${COMPONENT}" \
       org.opencontainers.image.version="${VERSION}" \

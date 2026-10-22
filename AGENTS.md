@@ -1,8 +1,7 @@
 # Agent Instructions
 
-These rules apply to this repository and to component repositories created from it. The
-crate's own rules are in
-[`crates/veoveo-template-mcp-rust/AGENTS.md`](crates/veoveo-template-mcp-rust/AGENTS.md).
+These rules apply to this repository. The crate's own rules are in
+[`crates/veoveo-mcp-console/AGENTS.md`](crates/veoveo-mcp-console/AGENTS.md).
 
 - Use upstream runtimes such as PostgreSQL unmodified. Adapt through
   supported configuration.
@@ -13,6 +12,9 @@ crate's own rules are in
   resources, subscriptions, the MCP Tasks adapter and calls to other servers. Depend on
   it by Git revision. veoveo-core holds no MCP; take types, the store, Tasks, usage and audit
   from it.
+- Console holds no authority of its own. Each tool calls the Hub's own routes as its
+  caller with the bearer `ctx.client()?.hub_bearer()` returns, which the route builder's
+  `calls_hub` declares; the Hub decides. Do not add checks the Hub makes.
 - A server that calls another server depends on that server's `contract` feature by Git
   revision, declares the permissions it calls with through
   the ready route builder’s `uses`, and calls through `ctx.client()` in a handler or
@@ -39,28 +41,17 @@ crate's own rules are in
   own scheme, as core's
   [audit record contract](https://github.com/VeoveoAI/veoveo-core/blob/9a6b3ff95469ff19f9ccb513421a57ba6751aa9e/platform/audit/contract/DESIGN.md#outcome-and-reason)
   describes.
-- The server owns one PostgreSQL schema named after its slug and applies the crate's
-  `migrations/` there at startup. Never edit an applied migration; add a new one.
-- Server SQL touches only the server's own schema. It never reads, joins or references
-  core's schemas (`tasks`, `usage`, `audit`, `identity`, `kernel`): core's state comes
-  only through the SDK and core's runtime API. `tests/sql_confinement.rs` checks it.
-  When the API lacks what the server needs, report the gap to core and the SDK instead
-  of working around it in the server.
-- Every SQL statement is a `.sql` file beside the code that runs it, run through sqlx's
-  checked `query_file*!` macros. Builds read the committed `.sqlx` metadata, because
-  `.cargo/config.toml` sets `SQLX_OFFLINE`. After changing a query or a migration,
-  regenerate the metadata from an empty target directory.
-- Statements and tables follow the server schema rules of veoveo-core's
-  [database design](https://github.com/VeoveoAI/veoveo-core/blob/9a6b3ff95469ff19f9ccb513421a57ba6751aa9e/docs/DATABASE.md),
-  which `crates/veoveo-template-mcp-rust/tests/database_conformance.rs` checks. A statement binds its tenant, bounds its
-  rows and reaches them through an index in a generic plan. A table has a primary key,
-  an index whose leading columns are each foreign key's, and a
-  `COMMENT ON TABLE … IS 'Retention: …'`. A statement that cannot comply carries a
-  `-- veoveo:` marker that states its reason.
-- Construct listings with core's `Collection`, `PageSize` and `Pager`, bound to the
-  collection, tenant and effective selection, with one statement for the first page and one
-  for the pages after a cursor. Do not write a `$cursor IS NULL OR …` predicate, which
-  loses the index seek in a cached generic plan.
+- The server owns the PostgreSQL schema named after its slug, which the Hub creates
+  when it registers, and keeps no tables there: it connects only to hold its process
+  instance, from which the Hub reads its health. A server that needs state adds
+  `migrations/` and `.sql` statements under core's
+  [database design](https://github.com/VeoveoAI/veoveo-core/blob/9a6b3ff95469ff19f9ccb513421a57ba6751aa9e/docs/DATABASE.md)
+  and its conformance test, as the Rust template does.
+- Server SQL touches only the server's own schema; core's state comes only through the
+  SDK and core's runtime API. `tests/sql_confinement.rs` checks it.
+- Builds read the committed `.sqlx` metadata of the core crates' queries, because
+  `.cargo/config.toml` sets `SQLX_OFFLINE`. After changing the core pin, regenerate the
+  metadata from an empty target directory.
 - Keep test logic in Rust and tool behavior in each tool's own configuration. Do not add
   a task runner or shell scripts that hold test logic.
 - Pin exact versions and image digests. When changing a pin, verify the latest stable
