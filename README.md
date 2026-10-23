@@ -56,6 +56,7 @@ The Hub decides; its refusal is the tool's error, with its status and problem de
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`, or `DELETE` for the base branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` |
 | `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}`; the Hub creates the Lore repository as the caller and assigns the caller its owner, and answers its `id`, `name` and clone `remote`, `<Lore remote>/<id>`. `id` only finishes a creation the Hub answered 503 for with that `id` |
+| `computer(restart?)` | `GET /computer/{profile}/status`, or with `restart: true` `POST /computer/{profile}/restart`, which the Hub answers before it restarts the caller's Computer at the current version. Its description names the current version and its summary from the Hub's public `GET /computer/version`, read about every 30 s; a change of version changes the description and tells the Hub that the tool list changed |
 
 ## Configuration
 

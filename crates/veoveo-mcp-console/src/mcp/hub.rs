@@ -10,7 +10,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use veoveo_hub_sdk::{HubProfileId, client::CallError, client::HubClient};
 
-use crate::contract::{InstanceStatus, Repository};
+use crate::contract::{ComputerStatus, ComputerVersion, InstanceStatus, Repository};
 
 /// The longest `status` waits for an instance to settle, as the Hub bounds it.
 pub const MAX_WAIT: Duration = Duration::from_secs(60);
@@ -177,6 +177,55 @@ impl Hub {
             .send(client, Method::POST, url, Some(body), CREATE_TIMEOUT)
             .await?;
         decode(&answer)
+    }
+
+    /// `GET /computer/{profile}/status`: the caller's Computer.
+    pub async fn computer(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+    ) -> Result<ComputerStatus, HubError> {
+        let url = self.route(&["computer", profile.as_str(), "status"], &[]);
+        let answer = self
+            .send(client, Method::GET, url, None, REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `POST /computer/{profile}/restart`: the Hub answers with the Computer's status at
+    /// once and then restarts it at the current version.
+    pub async fn restart_computer(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+    ) -> Result<ComputerStatus, HubError> {
+        let url = self.route(&["computer", profile.as_str(), "restart"], &[]);
+        let answer = self
+            .send(client, Method::POST, url, None, REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `GET /computer/version`: the installation's current Computer version, which the
+    /// Hub serves to anyone. No caller is involved.
+    pub async fn current_computer_version(&self) -> Result<ComputerVersion, HubError> {
+        let url = self.route(&["computer", "version"], &[]);
+        let response = self
+            .http
+            .get(url)
+            .header(ACCEPT, "application/json")
+            .timeout(REQUEST_MARGIN)
+            .send()
+            .await?;
+        let status = response.status();
+        let body = response.bytes().await?.to_vec();
+        if !status.is_success() {
+            return Err(HubError::Answered {
+                status,
+                problem: serde_json::from_slice(&body).unwrap_or_default(),
+            });
+        }
+        decode(&body)
     }
 
     /// The Hub route of `segments`, each percent-encoded as one path segment.

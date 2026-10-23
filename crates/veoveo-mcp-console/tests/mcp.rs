@@ -67,6 +67,34 @@ const UNREGISTERED: &str = "left-unregistered";
 const CREATED: &str = "5f0c1d2e3a4b5c6d7e8f90a1b2c3d4e5";
 const LORE_REMOTE: &str = "https://lore.veoveo.example";
 
+/// The version the fake Hub's Computer runs, and the current one.
+const RUNNING: &str = "3f2a9c0d1e4b";
+const CURRENT: &str = "8b1c2d3e4f5a";
+
+/// The fake Hub's answer for the caller's Computer: an update is available, or with
+/// `restarting`, the restart to it runs.
+fn computer_status(restarting: bool) -> Value {
+    let mut status = json!({
+        "computer": "019a5b30-0000-7000-8000-0000000000c1",
+        "version": {"version": RUNNING},
+        "sandbox": "ready",
+        "current": {"version": CURRENT, "summary": "Faster builds"},
+        "updateAvailable": true,
+        "whatsNew": {
+            "note": "Faster builds\nThe image adds a compiler.",
+            "image": {"from": "registry.internal/computer@sha256:1", "to": "registry.internal/computer@sha256:2"},
+            "networkRulesAdded": [{"name": "model", "endpoints": ["model.example:443"]}]
+        }
+    });
+    if restarting {
+        status["restart"] = json!({
+            "version": {"version": CURRENT, "summary": "Faster builds"},
+            "since": "2026-10-23T12:00:00Z"
+        });
+    }
+    status
+}
+
 /// The status the fake Hub reports: a branch whose server crashes at start.
 fn instance() -> Value {
     json!({
@@ -184,6 +212,17 @@ async fn hub_route(
         (Method::POST, path, _) if path.ends_with("/repositories") => {
             created(&body.unwrap_or_default())
         }
+        (Method::GET, path, _) if path.starts_with("/computer/") => (
+            [(header::CACHE_CONTROL, "no-store")],
+            axum::Json(computer_status(false)),
+        )
+            .into_response(),
+        (Method::POST, path, _) if path.starts_with("/computer/") => (
+            StatusCode::ACCEPTED,
+            [(header::CACHE_CONTROL, "no-store")],
+            axum::Json(computer_status(true)),
+        )
+            .into_response(),
         (_, _, Some(DENIED)) => problem(
             StatusCode::FORBIDDEN,
             "No grant on the repository",
@@ -217,6 +256,8 @@ fn hub_routes(requests: Requests) -> Router {
         .route("/factory/{profile}/watch", any(hub_route))
         .route("/lore/{profile}/repositories", any(hub_route))
         .route("/selection/{profile}/{server}", any(hub_route))
+        .route("/computer/{profile}/status", get(hub_route))
+        .route("/computer/{profile}/restart", any(hub_route))
         .with_state(requests)
 }
 
@@ -359,7 +400,14 @@ async fn every_tool_requires_the_console_permission_and_nothing_else() {
     names.sort();
     assert_eq!(
         names,
-        ["create_repository", "logs", "select", "status", "watch"]
+        [
+            "computer",
+            "create_repository",
+            "logs",
+            "select",
+            "status",
+            "watch"
+        ]
     );
     for access in AUTHORIZATION.requirements.tools.values() {
         assert_eq!(
@@ -731,4 +779,115 @@ async fn logs_need_the_hubs_answer_and_report_the_log_stores_refusal() {
              Request: cannot parse `query` arg: unexpected token"
         )
     );
+}
+
+#[tokio::test]
+async fn computer_reports_and_restarts_the_callers_computer_through_the_hub() {
+    let (mesh, requests, _) = console(&[ConsolePermission::Use]).await;
+    let status = call(&mesh, "computer", json!({})).await.unwrap();
+    assert_eq!(status, computer_status(false));
+    let restarting = call(&mesh, "computer", json!({"restart": true}))
+        .await
+        .unwrap();
+    assert_eq!(restarting, computer_status(true));
+
+    let requests = requests.lock().unwrap().clone();
+    let calls: Vec<_> = requests
+        .iter()
+        .map(|seen| (seen.method.clone(), seen.path.clone(), seen.body.clone()))
+        .collect();
+    assert_eq!(
+        calls,
+        [
+            (
+                Method::GET,
+                format!("/computer/{MESH_PROFILE}/status"),
+                None
+            ),
+            (
+                Method::POST,
+                format!("/computer/{MESH_PROFILE}/restart"),
+                None
+            ),
+        ]
+    );
+    assert_as_the_caller(&requests);
+}
+
+/// A Hub that answers only `GET /computer/version`, with `version`, as the Hub serves
+/// it to anyone.
+async fn versions(version: Arc<Mutex<Value>>) -> url::Url {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let base = url::Url::parse(&format!("http://{}", listener.local_addr().unwrap())).unwrap();
+    let router = Router::new()
+        .route(
+            "/computer/version",
+            get(|State(version): State<Arc<Mutex<Value>>>| async move {
+                axum::Json(version.lock().unwrap().clone())
+            }),
+        )
+        .with_state(version);
+    tokio::spawn(async move { axum::serve(listener, router).await });
+    base
+}
+
+#[tokio::test]
+async fn the_computer_tool_names_the_current_version_and_follows_it() {
+    use veoveo_mcp_console::mcp::computer;
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let version = Arc::new(Mutex::new(
+        json!({"version": RUNNING, "summary": "The first edition"}),
+    ));
+    let hub = Hub::new(&versions(version.clone()).await, reqwest::Client::new()).unwrap();
+    let logs = LogStore::new(
+        &url::Url::parse("http://127.0.0.1:9").unwrap(),
+        reqwest::Client::new(),
+    )
+    .unwrap();
+    let listed = testing::TestHub::new(
+        testing::for_domain::<ConsoleMcp>()
+            .handler(move || Hosted::new(ConsoleMcp::new(hub.clone(), logs.clone())))
+            .build(),
+    )
+    .granting([ConsolePermission::Use.name()]);
+    let description = || async {
+        listed.rpc("tools/list", json!({})).await["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|tool| tool["name"] == "computer")
+            .unwrap()["description"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(description().await, computer::UNKNOWN);
+
+    let hub = Hub::new(&versions(version.clone()).await, reqwest::Client::new()).unwrap();
+    assert!(computer::refresh(&hub).await.unwrap());
+    let first = description().await;
+    assert!(
+        first.contains(&format!("`{RUNNING}`: The first edition")),
+        "{first}"
+    );
+    assert!(
+        first.contains(
+            "Call this at the start of a session; if an update is available or was just \
+             installed, tell the person what's new in a line or two; restart only when the \
+             person asks."
+        ),
+        "{first}"
+    );
+    assert!(
+        !computer::refresh(&hub).await.unwrap(),
+        "the same version changes nothing"
+    );
+
+    *version.lock().unwrap() = json!({"version": CURRENT});
+    assert!(computer::refresh(&hub).await.unwrap());
+    let second = description().await;
+    assert!(second.contains(&format!("now `{CURRENT}`;")), "{second}");
+    assert!(!second.contains(RUNNING), "{second}");
 }

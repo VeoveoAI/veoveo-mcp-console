@@ -2,6 +2,7 @@
 //! Each tool calls the Hub for its caller, at the profile the caller came through, and
 //! reports the Hub's answer; a refusal is the tool's error. `logs` reads the log store
 //! for the sandbox the Hub's status names.
+pub mod computer;
 mod declarations;
 pub mod hub;
 pub mod logs;
@@ -19,9 +20,9 @@ use veoveo_hub_sdk::{
 };
 
 use crate::contract::{
-    ConsolePermission, CreateRepositoryRequest, DEFAULT_LOG_LINES, InstanceStatus, Logs,
-    LogsRequest, MAX_LOG_LINES, Repository, SelectRequest, Selection, StatusRequest, WatchRequest,
-    Watching,
+    ComputerRequest, ComputerStatus, ConsolePermission, CreateRepositoryRequest, DEFAULT_LOG_LINES,
+    InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES, Repository, SelectRequest, Selection,
+    StatusRequest, WatchRequest, Watching,
 };
 pub use declarations::{REGISTRATION, registration};
 pub use hub::Hub;
@@ -182,6 +183,28 @@ impl ConsoleMcp {
     }
 }
 
+impl ConsoleMcp {
+    /// The caller's Computer, or its restart, which the Hub answers before it begins.
+    async fn computer(
+        &self,
+        request: ComputerRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ComputerStatus, ToolError> {
+        let (client, profile) = caller(&context)?;
+        if request.restart {
+            self.hub
+                .restart_computer(&client, &profile)
+                .await
+                .map_err(|error| refused(format_args!("restart of your Computer"), error))
+        } else {
+            self.hub
+                .computer(&client, &profile)
+                .await
+                .map_err(|error| refused(format_args!("status of your Computer"), error))
+        }
+    }
+}
+
 /// The calls for this request's caller and the profile it came through.
 fn caller(context: &RequestContext<RoleServer>) -> Result<(HubClient, HubProfileId), ToolError> {
     let identity = hub_identity(context)?;
@@ -228,6 +251,11 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
             policy(),
             |domain, request, context| async move { domain.watch(request, context).await },
         )
+        .tool::<ComputerRequest, _, _>(
+            computer::UNKNOWN,
+            policy(),
+            |domain, request, context| async move { domain.computer(request, context).await },
+        )
         .tool::<CreateRepositoryRequest, _, _>(
             "Create a Lore repository that you own, and get its `id` and the `remote` to \
              clone. Your Computers can push to it once this answers; `watch` it to have \
@@ -240,6 +268,7 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
             },
         )
         .calls_hub()
+        .descriptions(computer::DESCRIPTIONS.clone())
         .build()
 });
 

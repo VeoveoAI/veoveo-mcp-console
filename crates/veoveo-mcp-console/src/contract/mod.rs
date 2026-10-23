@@ -3,12 +3,17 @@
 use veoveo_hub_sdk::calls::ProviderContract;
 use veoveo_types::ServerSlug;
 
+mod computer;
 mod logs;
 mod permissions;
 mod repository;
 mod selection;
 mod status;
 
+pub use computer::{
+    ComputerRequest, ComputerStatus, ComputerVersion, ImageChange, NetworkRule, Restart,
+    RestartFailure, Updated, WhatsNew,
+};
 pub use logs::{
     DEFAULT_LOG_LINES, LogLine, LogSource, Logs, LogsRequest, MAX_LOG_LINE_BYTES, MAX_LOG_LINES,
 };

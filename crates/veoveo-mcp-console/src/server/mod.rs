@@ -102,6 +102,8 @@ async fn serve(
         http.clone(),
     )?;
     let logs = LogStore::new(&args.log_store_url, http.clone())?;
+    // The `computer` tool's description follows the current Computer version.
+    let follower = tokio::spawn(mcp::computer::follow(hub.clone()));
     let grant = registration
         .database()
         .context("the Hub issued no database login")?;
@@ -135,6 +137,7 @@ async fn serve(
         served = hosted.serve(SocketAddr::from(([0, 0, 0, 0], args.port))) => served,
         () = instance.lost() => Err(anyhow::anyhow!("the process instance lost its lock")),
     };
+    follower.abort();
     if let Err(error) = instance.shutdown().await {
         tracing::warn!(%error, "the process instance did not stop cleanly");
     }

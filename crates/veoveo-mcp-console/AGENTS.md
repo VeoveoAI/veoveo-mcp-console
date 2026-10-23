@@ -19,6 +19,9 @@ holds the authority and decides every call.
 - Every tool calls the Hub's own routes for its caller through `mcp::hub::Hub` with
   `ctx.client()?.hub_bearer()`, at the caller's profile; the route builder declares
   `calls_hub`. A Hub refusal is the tool's error. Do not decide what the Hub decides.
+- `computer`'s description follows the Hub's public `GET /computer/version`, which
+  console reads without credentials about every 30 seconds; it names only the current
+  version, never a caller's state.
 - `logs` reads `status` first as its access check, then queries the log store by the
   sandbox ID that status names, without credentials. Keep it one query by the
   `openshell.ai/boundary-pair` label.

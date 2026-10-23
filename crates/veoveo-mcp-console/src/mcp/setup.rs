@@ -58,8 +58,8 @@ fn server_config() -> ServerConfig {
     info.instructions = Some(
         "The Hub's activities for your factory instances, as you: why a branch serves or \
          not, its output and network denials, which branch serves you each server, \
-         which repositories the Hub watches for you, and Lore repositories you create \
-         and own."
+         which repositories the Hub watches for you, Lore repositories you create \
+         and own, and your Computer's version and restart."
             .to_owned(),
     );
     info

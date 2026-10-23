@@ -44,6 +44,7 @@ The console answers these questions for an agent, as its user:
 - Which branch's instance serves me each server?
 - Which repositories does the Hub build and serve for me?
 - Where do I push a new repository of my own?
+- Is my Computer current, what does an update bring, and will you restart it?
 
 | Tool | Hub route | Result |
 |---|---|---|
@@ -52,6 +53,7 @@ The console answers these questions for an agent, as its user:
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
 | `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}` and the optional `"id"` | `Repository`: its ID, name and clone `remote`, `<Lore remote>/<id>` |
+| `computer(restart?)` | `GET /computer/{profile}/status`; with `restart: true`, `POST /computer/{profile}/restart` | `ComputerStatus`: the version the caller's Computer runs and the current one, whether an update is available and what it brings, a restart that runs or the last one's failure, a blocking cause, and an update installed since the caller was last told |
 
 Every tool requires `console.use`. `{profile}` is the profile the caller reached the
 console through, as the forwarded identity names it. `wait` is capped at 60 seconds,
@@ -82,6 +84,26 @@ created `id`.
 
 `InstanceStatus` follows the Hub's answer and reads only the fields it names; a phase
 or stage it does not know fails the call with the Hub's value.
+
+### The Computer Tool
+
+`computer` reports the caller's own Computer; the Hub finds it by the caller's tenant
+and principal. A restart is the Hub's: it answers `202` with the status at once and
+deletes the sandbox only a few seconds later, so an agent restarting its own Computer
+receives the answer before its session ends. The tool's argument tells agents to
+restart only when the person asks.
+
+A tool list is shared by every caller, so the description names only the current
+version and its summary, and the call says whether the caller's Computer is behind.
+Console reads the current version from the Hub's public `GET /computer/version`, with
+no credentials, at start and about every 30 seconds. When the version changes it sets
+the description through the SDK's `ToolDescriptions`, which serves it in `tools/list`
+and sends `notifications/tools/list_changed` on every listen the Hub holds, so the
+Hub refreshes its catalog and tells its clients. Until the first answer the
+description names no version; a failed read keeps the last one. The description tells
+agents: "Call this at the start of a session; if an update is available or was just
+installed, tell the person what's new in a line or two; restart only when the person
+asks."
 
 ### Logs
 
@@ -136,7 +158,7 @@ The `contract` feature also depends on chrono for the times of `logs`.
 | Module | Responsibility |
 |---|---|
 | `contract` | The public types a consumer compiles against |
-| `mcp` | The typed ready routes, checked setup, registration declaration, the Hub's routes (`mcp::hub`) and the log store (`mcp::logs`) |
+| `mcp` | The typed ready routes, checked setup, registration declaration, the Hub's routes (`mcp::hub`), the log store (`mcp::logs`) and the `computer` description that follows the current version (`mcp::computer`) |
 | `server` | Configuration, registration with the Hub, the database connection, the process instance and serving |
 
 ### Startup
