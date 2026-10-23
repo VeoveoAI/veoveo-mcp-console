@@ -1,5 +1,5 @@
-//! `computer`: the caller's Computer, as the Hub answers `GET /computer/{profile}/status`,
-//! and its restart, `POST /computer/{profile}/restart`. The types follow the Hub's
+//! `computer`: the caller's Computer, as the Hub answers `GET /computer/status`, and its
+//! restart, `POST /computer/restart`. The types follow the Hub's
 //! answer; fields the Hub adds later are not reported until they are added here.
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

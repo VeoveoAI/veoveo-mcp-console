@@ -53,7 +53,7 @@ The console answers these questions for an agent, as its user:
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
 | `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}` and the optional `"id"` | `Repository`: its ID, name and clone `remote`, `<Lore remote>/<id>` |
-| `computer(restart?)` | `GET /computer/{profile}/status`; with `restart: true`, `POST /computer/{profile}/restart` | `ComputerStatus`: the version the caller's Computer runs and the current one, whether an update is available and what it brings, a restart that runs or the last one's failure, a blocking cause, and an update installed since the caller was last told |
+| `computer(restart?)` | `GET /computer/status`; with `restart: true`, `POST /computer/restart` | `ComputerStatus`: the version the caller's Computer runs and the current one, whether an update is available and what it brings, a restart that runs or the last one's failure, a blocking cause, and an update installed since the caller was last told |
 
 Every tool requires `console.use`. `{profile}` is the profile the caller reached the
 console through, as the forwarded identity names it. `wait` is capped at 60 seconds,
@@ -88,7 +88,9 @@ or stage it does not know fails the call with the Hub's value.
 ### The Computer Tool
 
 `computer` reports the caller's own Computer; the Hub finds it by the caller's tenant
-and principal. A restart is the Hub's: it answers `202` with the status at once and
+and principal. Its paths name no profile: the Hub admits the exchanged token for its
+one Computers profile, so the tool serves callers who reach console through that
+profile, as agents in a Computer do; another profile's caller gets the Hub's 401. A restart is the Hub's: it answers `202` with the status at once and
 deletes the sandbox only a few seconds later, so an agent restarting its own Computer
 receives the answer before its session ends. The tool's argument tells agents to
 restart only when the person asks.

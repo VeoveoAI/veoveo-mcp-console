@@ -256,8 +256,8 @@ fn hub_routes(requests: Requests) -> Router {
         .route("/factory/{profile}/watch", any(hub_route))
         .route("/lore/{profile}/repositories", any(hub_route))
         .route("/selection/{profile}/{server}", any(hub_route))
-        .route("/computer/{profile}/status", get(hub_route))
-        .route("/computer/{profile}/restart", any(hub_route))
+        .route("/computer/status", get(hub_route))
+        .route("/computer/restart", any(hub_route))
         .with_state(requests)
 }
 
@@ -799,16 +799,8 @@ async fn computer_reports_and_restarts_the_callers_computer_through_the_hub() {
     assert_eq!(
         calls,
         [
-            (
-                Method::GET,
-                format!("/computer/{MESH_PROFILE}/status"),
-                None
-            ),
-            (
-                Method::POST,
-                format!("/computer/{MESH_PROFILE}/restart"),
-                None
-            ),
+            (Method::GET, "/computer/status".to_owned(), None),
+            (Method::POST, "/computer/restart".to_owned(), None),
         ]
     );
     assert_as_the_caller(&requests);

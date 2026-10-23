@@ -190,15 +190,15 @@ impl ConsoleMcp {
         request: ComputerRequest,
         context: RequestContext<RoleServer>,
     ) -> Result<ComputerStatus, ToolError> {
-        let (client, profile) = caller(&context)?;
+        let (client, _) = caller(&context)?;
         if request.restart {
             self.hub
-                .restart_computer(&client, &profile)
+                .restart_computer(&client)
                 .await
                 .map_err(|error| refused(format_args!("restart of your Computer"), error))
         } else {
             self.hub
-                .computer(&client, &profile)
+                .computer(&client)
                 .await
                 .map_err(|error| refused(format_args!("status of your Computer"), error))
         }

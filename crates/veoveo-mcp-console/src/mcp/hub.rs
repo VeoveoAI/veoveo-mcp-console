@@ -179,27 +179,20 @@ impl Hub {
         decode(&answer)
     }
 
-    /// `GET /computer/{profile}/status`: the caller's Computer.
-    pub async fn computer(
-        &self,
-        client: &HubClient,
-        profile: &HubProfileId,
-    ) -> Result<ComputerStatus, HubError> {
-        let url = self.route(&["computer", profile.as_str(), "status"], &[]);
+    /// `GET /computer/status`: the caller's Computer. The Hub admits the caller's token
+    /// for its one Computers profile.
+    pub async fn computer(&self, client: &HubClient) -> Result<ComputerStatus, HubError> {
+        let url = self.route(&["computer", "status"], &[]);
         let answer = self
             .send(client, Method::GET, url, None, REQUEST_MARGIN)
             .await?;
         decode(&answer)
     }
 
-    /// `POST /computer/{profile}/restart`: the Hub answers with the Computer's status at
-    /// once and then restarts it at the current version.
-    pub async fn restart_computer(
-        &self,
-        client: &HubClient,
-        profile: &HubProfileId,
-    ) -> Result<ComputerStatus, HubError> {
-        let url = self.route(&["computer", profile.as_str(), "restart"], &[]);
+    /// `POST /computer/restart`: the Hub answers with the Computer's status at once and
+    /// then restarts it at the current version.
+    pub async fn restart_computer(&self, client: &HubClient) -> Result<ComputerStatus, HubError> {
+        let url = self.route(&["computer", "restart"], &[]);
         let answer = self
             .send(client, Method::POST, url, None, REQUEST_MARGIN)
             .await?;
