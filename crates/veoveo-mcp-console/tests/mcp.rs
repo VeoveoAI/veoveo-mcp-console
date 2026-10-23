@@ -880,6 +880,25 @@ async fn the_computer_tool_names_the_current_version_and_follows_it() {
     *version.lock().unwrap() = json!({"version": CURRENT});
     assert!(computer::refresh(&hub).await.unwrap());
     let second = description().await;
-    assert!(second.contains(&format!("now `{CURRENT}`;")), "{second}");
+    assert!(
+        second.contains(&format!("The current version is `{CURRENT}`. With")),
+        "{second}"
+    );
+
+    // A summary that ends with its own period ends the sentence once.
+    *version.lock().unwrap() = json!({
+        "version": RUNNING,
+        "summary": "Your home ~ is now kept across restarts and updates."
+    });
+    assert!(computer::refresh(&hub).await.unwrap());
+    let third = description().await;
+    assert!(
+        third.contains(&format!(
+            "The current version is `{RUNNING}`: Your home ~ is now kept across restarts \
+             and updates. With"
+        )),
+        "{third}"
+    );
+    assert!(!third.contains(".;") && !third.contains(".."), "{third}");
     assert!(!second.contains(RUNNING), "{second}");
 }

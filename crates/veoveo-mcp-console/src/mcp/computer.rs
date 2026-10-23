@@ -30,19 +30,31 @@ pub const UNKNOWN: &str = "Your Computer's status: the version it runs and the c
      installed, tell the person what's new in a line or two; restart only when the \
      person asks.";
 
-/// The description that names `current`.
+/// The description that names `current`. The version and its summary end a sentence
+/// of their own, so a summary's own period does not run into a separator.
 pub fn describe(current: &ComputerVersion) -> String {
     let version = match &current.summary {
-        Some(summary) => format!("`{}`: {summary}", current.version),
-        None => format!("`{}`", current.version),
+        Some(summary) => ended(&format!("`{}`: {summary}", current.version)),
+        None => format!("`{}`.", current.version),
     };
     format!(
-        "Your Computer's status: the version it runs and the current one, now {version}; \
-         whether an update is available and what it brings, a restart that runs or the \
-         last one's failure, and an update just installed. With `restart: true`, restart \
-         your Computer at the current version; `~` is kept, running programs and `/tmp` \
-         are not. {GUIDANCE}"
+        "Your Computer's status: the version it runs and the current one, whether an \
+         update is available and what it brings, a restart that runs or the last one's \
+         failure, and an update just installed. The current version is {version} With \
+         `restart: true`, restart your Computer at the current version; `~` is kept, \
+         running programs and `/tmp` are not. {GUIDANCE}"
     )
+}
+
+/// `text` as the end of a sentence: with a period, unless it ends with its own
+/// punctuation.
+fn ended(text: &str) -> String {
+    let trimmed = text.trim_end();
+    if trimmed.ends_with(['.', '!', '?']) {
+        trimmed.to_owned()
+    } else {
+        format!("{trimmed}.")
+    }
 }
 
 /// Read the current version once and describe the tool by it. Returns whether the
