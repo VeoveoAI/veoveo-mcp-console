@@ -43,6 +43,7 @@ The console answers these questions for an agent, as its user:
 - What did its sandbox write, and which of its network requests were denied?
 - Which branch's instance serves me each server?
 - Which repositories does the Hub build and serve for me?
+- Where do I push a new repository of my own?
 
 | Tool | Hub route | Result |
 |---|---|---|
@@ -50,6 +51,7 @@ The console answers these questions for an agent, as its user:
 | `logs(repository, branch, since?, limit?)` | `status` without waiting, then the log store | `Logs`: the sandbox's name and ID and its latest lines, oldest first, each with its time, its source (`stdout`, `stderr` or `denied`) and its text, and whether older lines were left out |
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
+| `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}` and the optional `"id"` | `Repository`: its ID, name and clone `remote`, `<Lore remote>/<id>` |
 
 Every tool requires `console.use`. `{profile}` is the profile the caller reached the
 console through, as the forwarded identity names it. `wait` is capped at 60 seconds,
@@ -63,10 +65,20 @@ grant without declaring uses of any other server. Each tool takes the bearer
 Hub's token endpoint for the caller's profile, naming no permissions, cached for the
 request. The Hub admits it as the caller and decides each route by the caller's own
 grants: a selection is the caller's own, an instance's status and a watch need the
-caller's grant on the repository. A Hub refusal, such as 403 without a grant or 404
-without an instance, is the tool's error result, naming what was refused, the HTTP
-status and the Hub's RFC 9457 title and detail. Path segments are percent-encoded
-one by one.
+caller's grant on the repository, and a creation needs the caller's tenant. A Hub
+refusal, such as 403 without a grant or 404 without an instance, is the tool's error
+result, naming what was refused, the HTTP status and the Hub's RFC 9457 title and
+detail, and the problem's `id` extension when it has one. Path segments are
+percent-encoded one by one.
+
+`create_repository` is one Hub call: the Hub creates the repository in its Lore
+deployment as the caller, publishes the revision that registers it and assigns the
+caller its owner, renews the Lore access of the caller's Computers, and only then
+answers, so the caller's first push is admitted. A name Lore holds already is 409. A
+503 that names an `id` is a repository Lore created but the Hub did not register;
+calling again with the same name and that `id` registers it, and nobody but its
+creator can. The call waits up to 120 seconds, since giving up earlier would lose the
+created `id`.
 
 `InstanceStatus` follows the Hub's answer and reads only the fields it names; a phase
 or stage it does not know fails the call with the Hub's value.

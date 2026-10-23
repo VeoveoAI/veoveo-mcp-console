@@ -57,8 +57,9 @@ fn server_config() -> ServerConfig {
     info.server_info = rmcp::model::Implementation::new(crate::SLUG, env!("CARGO_PKG_VERSION"));
     info.instructions = Some(
         "The Hub's activities for your factory instances, as you: why a branch serves or \
-         not, its output and network denials, which branch serves you each server, and \
-         which repositories the Hub watches for you."
+         not, its output and network denials, which branch serves you each server, \
+         which repositories the Hub watches for you, and Lore repositories you create \
+         and own."
             .to_owned(),
     );
     info

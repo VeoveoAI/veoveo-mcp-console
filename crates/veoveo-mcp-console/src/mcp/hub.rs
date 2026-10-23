@@ -10,12 +10,16 @@ use reqwest::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use veoveo_hub_sdk::{HubProfileId, client::CallError, client::HubClient};
 
-use crate::contract::InstanceStatus;
+use crate::contract::{InstanceStatus, Repository};
 
 /// The longest `status` waits for an instance to settle, as the Hub bounds it.
 pub const MAX_WAIT: Duration = Duration::from_secs(60);
 /// How long a request may take beyond the wait it asks for.
 const REQUEST_MARGIN: Duration = Duration::from_secs(15);
+/// How long a repository creation may take: the Hub bounds each of its steps, Lore's
+/// creation and the renewal of the caller's Computer, at 30 seconds to connect and 30
+/// to answer. Giving up earlier would leave the agent without the created `id`.
+const CREATE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The Hub at the origin of its issuer.
 #[derive(Clone)]
@@ -49,12 +53,19 @@ pub struct Problem {
     pub title: Option<String>,
     #[serde(default)]
     pub detail: Option<String>,
+    /// The repository a refused or unfinished creation concerns, an extension member
+    /// of the Hub's problems for `POST /lore/{profile}/repositories`.
+    #[serde(default)]
+    pub id: Option<String>,
 }
 
 impl fmt::Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for part in [&self.title, &self.detail].into_iter().flatten() {
             write!(f, ": {part}")?;
+        }
+        if let Some(id) = &self.id {
+            write!(f, " (id `{id}`)")?;
         }
         Ok(())
     }
@@ -63,6 +74,13 @@ impl fmt::Display for Problem {
 #[derive(Serialize)]
 struct SelectionBody<'a> {
     branch: &'a str,
+}
+
+#[derive(Serialize)]
+struct CreateRepositoryBody<'a> {
+    name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<&'a str>,
 }
 
 impl Hub {
@@ -141,6 +159,24 @@ impl Hub {
         self.send(client, Method::PUT, url, None, REQUEST_MARGIN)
             .await
             .map(drop)
+    }
+
+    /// `POST /lore/{profile}/repositories` with `{"name": …}` and the optional `"id"`:
+    /// the Hub creates the repository in Lore as the caller and makes the caller its
+    /// owner.
+    pub async fn create_repository(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+        name: &str,
+        id: Option<&str>,
+    ) -> Result<Repository, HubError> {
+        let url = self.route(&["lore", profile.as_str(), "repositories"], &[]);
+        let body = serde_json::to_vec(&CreateRepositoryBody { name, id })?;
+        let answer = self
+            .send(client, Method::POST, url, Some(body), CREATE_TIMEOUT)
+            .await?;
+        decode(&answer)
     }
 
     /// The Hub route of `segments`, each percent-encoded as one path segment.

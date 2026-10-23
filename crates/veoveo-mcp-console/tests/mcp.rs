@@ -58,6 +58,14 @@ const REPOSITORY: &str = "01a1586c-0000-7000-8000-000000000001";
 const BRANCH: &str = "dev/jose/x";
 const SANDBOX: &str = "8000-000000000002";
 const SANDBOX_ID: &str = "fc754186-814d-4aa2-bb05-13378da8acc9";
+/// A repository name the fake Hub answers 409 for, as one Lore holds already.
+const TAKEN: &str = "taken";
+/// A repository name whose creation the fake Hub answers 503 for, created in Lore but
+/// not registered, unless the call names the repository's `id`.
+const UNREGISTERED: &str = "left-unregistered";
+/// The ID of every repository the fake Hub creates.
+const CREATED: &str = "5f0c1d2e3a4b5c6d7e8f90a1b2c3d4e5";
+const LORE_REMOTE: &str = "https://lore.veoveo.example";
 
 /// The status the fake Hub reports: a branch whose server crashes at start.
 fn instance() -> Value {
@@ -85,18 +93,57 @@ fn instance() -> Value {
 }
 
 fn problem(status: StatusCode, title: &str, detail: &str) -> Response {
+    problem_with(status, title, detail, json!({}))
+}
+
+/// A problem with the extension members of `extensions`.
+fn problem_with(status: StatusCode, title: &str, detail: &str, extensions: Value) -> Response {
+    let mut problem = json!({
+        "type": "https://veoveo.ai/problems/fixture",
+        "title": title,
+        "status": status.as_u16(),
+        "detail": detail
+    });
+    problem
+        .as_object_mut()
+        .unwrap()
+        .extend(extensions.as_object().unwrap().clone());
     (
         status,
         [(header::CONTENT_TYPE, "application/problem+json")],
-        json!({
-            "type": "https://veoveo.ai/problems/fixture",
-            "title": title,
-            "status": status.as_u16(),
-            "detail": detail
-        })
-        .to_string(),
+        problem.to_string(),
     )
         .into_response()
+}
+
+/// The Hub's answer to `POST /lore/{profile}/repositories` with `body`.
+fn created(body: &Value) -> Response {
+    let name = body["name"].as_str().unwrap_or_default();
+    let id = body["id"].as_str();
+    match (name, id) {
+        (TAKEN, _) => problem(
+            StatusCode::CONFLICT,
+            "Lore holds a repository of this ID or name already",
+            "a repository of this ID has another name, or this name belongs to another ID",
+        ),
+        (UNREGISTERED, None) => problem_with(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Repository creation is unavailable",
+            "The repository was created in Lore but not registered. Call again with this id to register it.",
+            json!({"id": CREATED}),
+        ),
+        (name, id) => {
+            let id = id.unwrap_or(CREATED);
+            (
+                StatusCode::CREATED,
+                [(header::CACHE_CONTROL, "no-store")],
+                axum::Json(
+                    json!({"id": id, "name": name, "remote": format!("{LORE_REMOTE}/{id}")}),
+                ),
+            )
+                .into_response()
+        }
+    }
 }
 
 /// Every fake Hub route: record the request, then answer as the Hub would.
@@ -119,11 +166,12 @@ async fn hub_route(
         .iter()
         .find(|(name, _)| name == "repository")
         .map(|(_, value)| value.clone());
+    let body: Option<Value> = (!body.is_empty()).then(|| serde_json::from_slice(&body).unwrap());
     requests.lock().unwrap().push(Seen {
         method: method.clone(),
         path: uri.path().to_owned(),
         query,
-        body: (!body.is_empty()).then(|| serde_json::from_slice(&body).unwrap()),
+        body: body.clone(),
         caller: identity.caller.actor.id.to_string(),
         acting_server: identity.acting_server.server.to_string(),
         permissions: identity
@@ -133,6 +181,9 @@ async fn hub_route(
             .collect(),
     });
     match (method, uri.path(), repository.as_deref()) {
+        (Method::POST, path, _) if path.ends_with("/repositories") => {
+            created(&body.unwrap_or_default())
+        }
         (_, _, Some(DENIED)) => problem(
             StatusCode::FORBIDDEN,
             "No grant on the repository",
@@ -164,6 +215,7 @@ fn hub_routes(requests: Requests) -> Router {
     Router::new()
         .route("/factory/{profile}/instance", get(hub_route))
         .route("/factory/{profile}/watch", any(hub_route))
+        .route("/lore/{profile}/repositories", any(hub_route))
         .route("/selection/{profile}/{server}", any(hub_route))
         .with_state(requests)
 }
@@ -305,7 +357,10 @@ async fn every_tool_requires_the_console_permission_and_nothing_else() {
         .map(ToString::to_string)
         .collect();
     names.sort();
-    assert_eq!(names, ["logs", "select", "status", "watch"]);
+    assert_eq!(
+        names,
+        ["create_repository", "logs", "select", "status", "watch"]
+    );
     for access in AUTHORIZATION.requirements.tools.values() {
         assert_eq!(
             *access,
@@ -454,6 +509,64 @@ async fn watch_asks_the_hub_to_watch_a_repository_as_the_caller() {
     assert_eq!(requests[0].path, format!("/factory/{MESH_PROFILE}/watch"));
     assert_eq!(query(&requests[0]), [("repository", REPOSITORY)]);
     assert_eq!(requests[0].body, None);
+    assert_as_the_caller(&requests);
+}
+
+#[tokio::test]
+async fn create_repository_creates_one_the_caller_owns_through_the_hub() {
+    let (mesh, requests, _) = console(&[ConsolePermission::Use]).await;
+    let created = call(&mesh, "create_repository", json!({"name": "hello"}))
+        .await
+        .unwrap();
+    assert_eq!(
+        created,
+        json!({"id": CREATED, "name": "hello", "remote": format!("{LORE_REMOTE}/{CREATED}")})
+    );
+
+    // A creation the Hub did not finish names the repository, and the call that names
+    // it finishes it.
+    let unfinished = call(&mesh, "create_repository", json!({"name": UNREGISTERED}))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        unfinished,
+        format!(
+            "creation of repository `{UNREGISTERED}`: the Hub answered 503 Service \
+             Unavailable: Repository creation is unavailable: The repository was created in \
+             Lore but not registered. Call again with this id to register it. (id `{CREATED}`)"
+        )
+    );
+    let finished = call(
+        &mesh,
+        "create_repository",
+        json!({"name": UNREGISTERED, "id": CREATED}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(finished["id"], json!(CREATED));
+    assert_eq!(finished["name"], json!(UNREGISTERED));
+
+    let taken = call(&mesh, "create_repository", json!({"name": TAKEN}))
+        .await
+        .unwrap_err();
+    assert!(
+        taken.contains("409 Conflict: Lore holds a repository of this ID or name already"),
+        "{taken}"
+    );
+
+    let requests = requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 4);
+    for seen in &requests {
+        assert_eq!(seen.method, Method::POST);
+        assert_eq!(seen.path, format!("/lore/{MESH_PROFILE}/repositories"));
+        assert!(seen.query.is_empty());
+    }
+    assert_eq!(requests[0].body, Some(json!({"name": "hello"})));
+    assert_eq!(requests[1].body, Some(json!({"name": UNREGISTERED})));
+    assert_eq!(
+        requests[2].body,
+        Some(json!({"name": UNREGISTERED, "id": CREATED}))
+    );
     assert_as_the_caller(&requests);
 }
 

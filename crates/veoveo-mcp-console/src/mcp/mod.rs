@@ -19,8 +19,9 @@ use veoveo_hub_sdk::{
 };
 
 use crate::contract::{
-    ConsolePermission, DEFAULT_LOG_LINES, InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES,
-    SelectRequest, Selection, StatusRequest, WatchRequest, Watching,
+    ConsolePermission, CreateRepositoryRequest, DEFAULT_LOG_LINES, InstanceStatus, Logs,
+    LogsRequest, MAX_LOG_LINES, Repository, SelectRequest, Selection, StatusRequest, WatchRequest,
+    Watching,
 };
 pub use declarations::{REGISTRATION, registration};
 pub use hub::Hub;
@@ -162,6 +163,23 @@ impl ConsoleMcp {
             repository: request.repository,
         })
     }
+
+    async fn create_repository(
+        &self,
+        request: CreateRepositoryRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<Repository, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .create_repository(&client, &profile, &request.name, request.id.as_deref())
+            .await
+            .map_err(|error| {
+                refused(
+                    format_args!("creation of repository `{}`", request.name),
+                    error,
+                )
+            })
+    }
 }
 
 /// The calls for this request's caller and the profile it came through.
@@ -209,6 +227,17 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
              `openshell/run` is built and served when someone pushes it.",
             policy(),
             |domain, request, context| async move { domain.watch(request, context).await },
+        )
+        .tool::<CreateRepositoryRequest, _, _>(
+            "Create a Lore repository that you own, and get its `id` and the `remote` to \
+             clone. Your Computers can push to it once this answers; `watch` it to have \
+             the Hub serve its branches. If the Hub answers that it created the \
+             repository but did not register it, call again with the same `name` and \
+             the `id` it named.",
+            policy(),
+            |domain, request, context| async move {
+                domain.create_repository(request, context).await
+            },
         )
         .calls_hub()
         .build()

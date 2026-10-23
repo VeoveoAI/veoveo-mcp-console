@@ -55,6 +55,7 @@ The Hub decides; its refusal is the tool's error, with its status and problem de
 | `logs(repository, branch, since?, limit?)` | `status` without waiting as the access check, then one LogsQL query of the log store for the sandbox ID it names: the workload's `agent` output and the supervisor's network denials, at most 1000 lines |
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`, or `DELETE` for the base branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` |
+| `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}`; the Hub creates the Lore repository as the caller and assigns the caller its owner, and answers its `id`, `name` and clone `remote`, `<Lore remote>/<id>`. `id` only finishes a creation the Hub answered 503 for with that `id` |
 
 ## Configuration
 
