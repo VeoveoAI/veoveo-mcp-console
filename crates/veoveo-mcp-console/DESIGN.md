@@ -144,6 +144,13 @@ returned the two newest; `start=2026-10-22T10:00:03Z` was inclusive; a malformed
 query answered 400 with VictoriaLogs' parse error. Not measured: the records Vector
 writes from a live sandbox.
 
+The log store answers whoever reaches it, so reaching it is the boundary. The console
+is a platform component: it runs as the sandbox `console` in the installation's
+`vv-services` workspace, registered on the namespace path, and only its policy admits
+the log store. A console branch can still be served as a factory instance, but its
+`logs` fails there: the factory base policy withholds the log store, and a repository
+policy that added it would let any branch read every instance's output.
+
 ## Architecture
 
 ### Library Features
