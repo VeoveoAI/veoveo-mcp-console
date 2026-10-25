@@ -3,6 +3,8 @@
 These rules apply to this repository. The crate's own rules are in
 [`crates/veoveo-mcp-console/AGENTS.md`](crates/veoveo-mcp-console/AGENTS.md).
 
+- The design is in [crates/veoveo-mcp-console/DESIGN.md](crates/veoveo-mcp-console/DESIGN.md). Change it in the
+  same change as the code.
 - Use upstream runtimes such as PostgreSQL unmodified. Adapt through
   supported configuration.
 - Prefer strong types: typed structs, enums and domain identifiers over raw strings and
