@@ -8,6 +8,7 @@ mod logs;
 mod permissions;
 mod repository;
 mod selection;
+mod sharing;
 mod status;
 
 pub use computer::{
@@ -20,6 +21,11 @@ pub use logs::{
 pub use permissions::{ConsolePermission, ConsoleScope};
 pub use repository::{CreateRepositoryRequest, Repository};
 pub use selection::{SelectRequest, Selection, WatchRequest, Watching};
+pub use sharing::{
+    AccessEntry, AccessLevel, CreateGroupRequest, Group, GroupName, GroupRole, Groups,
+    GroupsRequest, Member, MemberRole, Person, RepositoryAccess, RepositoryAccessRequest,
+    SetGroupMemberRequest, ShareAccess, ShareRepositoryRequest, Subject,
+};
 pub use status::{Condition, Failure, InstanceStatus, Phase, SandboxStatus, Stage, StatusRequest};
 
 /// The console as the provider of its tools.

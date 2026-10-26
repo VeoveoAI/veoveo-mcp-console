@@ -56,6 +56,11 @@ The Hub decides; its refusal is the tool's error, with its status and problem de
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`, or `DELETE` for the base branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` |
 | `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}`; the Hub creates the Lore repository as the caller and assigns the caller its owner, and answers its `id`, `name` and clone `remote`, `<Lore remote>/<id>`. `id` only finishes a creation the Hub answered 503 for with that `id` |
+| `repository_access(repository)` | `GET /lore/{profile}/repositories/{id}/access`: each person, by email and name, and group with access, and its level |
+| `share_repository(repository, person \| group, access)` | `PUT /lore/{profile}/repositories/{id}/access`; an owner sets `member`, `owner` or `none` for a person, by email, or a group, by name |
+| `groups()` | `GET /lore/{profile}/groups`: the caller's groups and their members |
+| `create_group(name)` | `POST /lore/{profile}/groups`; the caller owns the new group |
+| `set_group_member(group, person, role)` | `PUT /lore/{profile}/groups/{name}/members`; an owner of the group sets `member`, `owner` or `none` |
 | `computer(restart?)` | `GET /computer/status`, or with `restart: true` `POST /computer/restart`, which the Hub answers before it restarts the caller's Computer at the current version. Its description names the current version and its summary from the Hub's public `GET /computer/version`, read about every 30 s; a change of version changes the description and tells the Hub that the tool list changed |
 
 ## Configuration

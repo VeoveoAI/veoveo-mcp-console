@@ -20,9 +20,11 @@ use veoveo_hub_sdk::{
 };
 
 use crate::contract::{
-    ComputerRequest, ComputerStatus, ConsolePermission, CreateRepositoryRequest, DEFAULT_LOG_LINES,
-    InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES, Repository, SelectRequest, Selection,
-    StatusRequest, WatchRequest, Watching,
+    ComputerRequest, ComputerStatus, ConsolePermission, CreateGroupRequest,
+    CreateRepositoryRequest, DEFAULT_LOG_LINES, Group, Groups, GroupsRequest, InstanceStatus, Logs,
+    LogsRequest, MAX_LOG_LINES, Repository, RepositoryAccess, RepositoryAccessRequest,
+    SelectRequest, Selection, SetGroupMemberRequest, ShareRepositoryRequest, StatusRequest,
+    WatchRequest, Watching,
 };
 pub use declarations::{REGISTRATION, registration};
 pub use hub::Hub;
@@ -181,6 +183,97 @@ impl ConsoleMcp {
                 )
             })
     }
+
+    async fn repository_access(
+        &self,
+        request: RepositoryAccessRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<RepositoryAccess, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .repository_access(&client, &profile, &request.repository)
+            .await
+            .map_err(|error| {
+                refused(
+                    format_args!("access to repository `{}`", request.repository),
+                    error,
+                )
+            })
+    }
+
+    async fn share_repository(
+        &self,
+        request: ShareRepositoryRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<RepositoryAccess, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .share_repository(
+                &client,
+                &profile,
+                &request.repository,
+                request.person.as_deref(),
+                request.group.as_deref(),
+                request.access,
+            )
+            .await
+            .map_err(|error| {
+                refused(
+                    format_args!("sharing of repository `{}`", request.repository),
+                    error,
+                )
+            })
+    }
+
+    async fn groups(
+        &self,
+        _: GroupsRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<Groups, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .groups(&client, &profile)
+            .await
+            .map_err(|error| refused(format_args!("your groups"), error))
+    }
+
+    async fn create_group(
+        &self,
+        request: CreateGroupRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<Group, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .create_group(&client, &profile, &request.name)
+            .await
+            .map_err(|error| refused(format_args!("creation of group `{}`", request.name), error))
+    }
+
+    async fn set_group_member(
+        &self,
+        request: SetGroupMemberRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<Group, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .set_group_member(
+                &client,
+                &profile,
+                &request.group,
+                &request.person,
+                request.role,
+            )
+            .await
+            .map_err(|error| {
+                refused(
+                    format_args!(
+                        "membership of `{}` in group `{}`",
+                        request.person, request.group
+                    ),
+                    error,
+                )
+            })
+    }
 }
 
 impl ConsoleMcp {
@@ -258,13 +351,52 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
         )
         .tool::<CreateRepositoryRequest, _, _>(
             "Create a Lore repository that you own, and get its `id` and the `remote` to \
-             clone. Your Computers can push to it once this answers; `watch` it to have \
+             clone. Your Computers can push to it once this answers; share it with
+             `share_repository`; `watch` it to have \
              the Hub serve its branches. If the Hub answers that it created the \
              repository but did not register it, call again with the same `name` and \
              the `id` it named.",
             policy(),
             |domain, request, context| async move {
                 domain.create_repository(request, context).await
+            },
+        )
+        .tool::<RepositoryAccessRequest, _, _>(
+            "Who may reach a repository: each person, by email and name, and each group, \
+             with `member` (clone, read and push) or `owner` (a member who also shares it).",
+            policy(),
+            |domain, request, context| async move {
+                domain.repository_access(request, context).await
+            },
+        )
+        .tool::<ShareRepositoryRequest, _, _>(
+            "Share a repository you own with a person, by the email they sign in with, or \
+             with a group, by its name: `member` lets them clone, read and push, `owner` \
+             also lets them share it, and `none` removes their access. Their Computers \
+             reach it within five minutes. Answers who may reach it now.",
+            policy(),
+            |domain, request, context| async move {
+                domain.share_repository(request, context).await
+            },
+        )
+        .tool::<GroupsRequest, _, _>(
+            "The groups you belong to, each with its members and their roles.",
+            policy(),
+            |domain, request, context| async move { domain.groups(request, context).await },
+        )
+        .tool::<CreateGroupRequest, _, _>(
+            "Create a group that you own, to share repositories with several people at \
+             once. Add people with `set_group_member`.",
+            policy(),
+            |domain, request, context| async move { domain.create_group(request, context).await },
+        )
+        .tool::<SetGroupMemberRequest, _, _>(
+            "Add a person to a group you own, by the email they sign in with, as `member` \
+             or `owner` (who also manages members), or remove them with `none`. A member \
+             reaches every repository shared with the group within five minutes.",
+            policy(),
+            |domain, request, context| async move {
+                domain.set_group_member(request, context).await
             },
         )
         .calls_hub()

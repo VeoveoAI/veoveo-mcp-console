@@ -174,6 +174,75 @@ fn created(body: &Value) -> Response {
     }
 }
 
+/// An email the fake Hub knows no person by, as for someone who never signed in.
+const STRANGER: &str = "stranger@example.com";
+/// A person whose removal the fake Hub refuses, as the caller's own last owner role.
+const SELF: &str = "me@example.com";
+
+/// The fake Hub's answer for who may reach `repository`.
+fn access(repository: &str) -> Value {
+    json!({
+        "repository": repository,
+        "access": [
+            {"person": {"email": SELF, "name": "Me"}, "access": "owner", "actions": ["owner"]},
+            {"person": {"email": null, "name": null}, "access": "member", "actions": []},
+            {"group": {"name": "flight"}, "access": "member", "actions": []}
+        ]
+    })
+}
+
+/// The fake Hub's group `name`, with the caller as its owner.
+fn group(name: &str) -> Value {
+    json!({"name": name, "members": [
+        {"email": SELF, "name": "Me", "role": "owner"},
+        {"email": "ana@example.com", "name": "Ana", "role": "member"}
+    ]})
+}
+
+/// The Hub's answer to the access, group and membership routes.
+fn sharing(method: &Method, path: &str, body: &Value) -> Option<Response> {
+    let segments: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+    let answer = match (method, segments.as_slice()) {
+        (&Method::GET, ["lore", _, "repositories", repository, "access"]) => {
+            axum::Json(access(repository)).into_response()
+        }
+        (&Method::PUT, ["lore", _, "repositories", repository, "access"]) => {
+            if body["person"] == json!(STRANGER) {
+                problem(
+                    StatusCode::NOT_FOUND,
+                    "Unknown person",
+                    "nobody with this email has signed in yet; they can be added once they sign in",
+                )
+            } else {
+                axum::Json(access(repository)).into_response()
+            }
+        }
+        (&Method::GET, ["lore", _, "groups"]) => {
+            axum::Json(json!({"groups": [group("flight")]})).into_response()
+        }
+        (&Method::POST, ["lore", _, "groups"]) => (
+            StatusCode::CREATED,
+            axum::Json(json!({"name": body["name"], "members": [
+                {"email": SELF, "name": "Me", "role": "owner"}
+            ]})),
+        )
+            .into_response(),
+        (&Method::PUT, ["lore", _, "groups", name, "members"]) => {
+            if body["person"] == json!(SELF) && body["role"] != json!("owner") {
+                problem(
+                    StatusCode::CONFLICT,
+                    "The group would have no owner",
+                    "you would no longer own the group; make another member its owner first",
+                )
+            } else {
+                axum::Json(group(name)).into_response()
+            }
+        }
+        _ => return None,
+    };
+    Some(answer)
+}
+
 /// Every fake Hub route: record the request, then answer as the Hub would.
 async fn hub_route(
     State(requests): State<Requests>,
@@ -208,6 +277,9 @@ async fn hub_route(
             .map(ToString::to_string)
             .collect(),
     });
+    if let Some(answer) = sharing(&method, uri.path(), &body.clone().unwrap_or_default()) {
+        return answer;
+    }
     match (method, uri.path(), repository.as_deref()) {
         (Method::POST, path, _) if path.ends_with("/repositories") => {
             created(&body.unwrap_or_default())
@@ -255,6 +327,9 @@ fn hub_routes(requests: Requests) -> Router {
         .route("/factory/{profile}/instance", get(hub_route))
         .route("/factory/{profile}/watch", any(hub_route))
         .route("/lore/{profile}/repositories", any(hub_route))
+        .route("/lore/{profile}/repositories/{id}/access", any(hub_route))
+        .route("/lore/{profile}/groups", any(hub_route))
+        .route("/lore/{profile}/groups/{name}/members", any(hub_route))
         .route("/selection/{profile}/{server}", any(hub_route))
         .route("/computer/status", get(hub_route))
         .route("/computer/restart", any(hub_route))
@@ -402,9 +477,14 @@ async fn every_tool_requires_the_console_permission_and_nothing_else() {
         names,
         [
             "computer",
+            "create_group",
             "create_repository",
+            "groups",
             "logs",
+            "repository_access",
             "select",
+            "set_group_member",
+            "share_repository",
             "status",
             "watch"
         ]
@@ -614,6 +694,137 @@ async fn create_repository_creates_one_the_caller_owns_through_the_hub() {
     assert_eq!(
         requests[2].body,
         Some(json!({"name": UNREGISTERED, "id": CREATED}))
+    );
+    assert_as_the_caller(&requests);
+}
+
+#[tokio::test]
+async fn sharing_reads_and_sets_a_repositorys_access_through_the_hub() {
+    let (mesh, requests, _) = console(&[ConsolePermission::Use]).await;
+    let path = format!("/lore/{MESH_PROFILE}/repositories/{CREATED}/access");
+
+    let read = call(&mesh, "repository_access", json!({"repository": CREATED}))
+        .await
+        .unwrap();
+    assert_eq!(read, access(CREATED));
+
+    let shared = call(
+        &mesh,
+        "share_repository",
+        json!({"repository": CREATED, "person": "ana@example.com", "access": "member"}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(shared, access(CREATED));
+    call(
+        &mesh,
+        "share_repository",
+        json!({"repository": CREATED, "group": "flight", "access": "none"}),
+    )
+    .await
+    .unwrap();
+
+    let unknown = call(
+        &mesh,
+        "share_repository",
+        json!({"repository": CREATED, "person": STRANGER, "access": "owner"}),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        unknown,
+        format!(
+            "sharing of repository `{CREATED}`: the Hub answered 404 Not Found: Unknown \
+             person: nobody with this email has signed in yet; they can be added once they \
+             sign in"
+        )
+    );
+
+    let requests = requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 4);
+    for seen in &requests {
+        assert_eq!(seen.path, path);
+        assert!(seen.query.is_empty());
+    }
+    assert_eq!(requests[0].method, Method::GET);
+    assert_eq!(requests[0].body, None);
+    assert_eq!(requests[1].method, Method::PUT);
+    assert_eq!(
+        requests[1].body,
+        Some(json!({"person": "ana@example.com", "access": "member"}))
+    );
+    assert_eq!(
+        requests[2].body,
+        Some(json!({"group": "flight", "access": "none"}))
+    );
+    assert_eq!(
+        requests[3].body,
+        Some(json!({"person": STRANGER, "access": "owner"}))
+    );
+    assert_as_the_caller(&requests);
+}
+
+#[tokio::test]
+async fn groups_are_listed_created_and_changed_through_the_hub() {
+    let (mesh, requests, _) = console(&[ConsolePermission::Use]).await;
+
+    let groups = call(&mesh, "groups", json!({})).await.unwrap();
+    assert_eq!(groups, json!({"groups": [group("flight")]}));
+
+    let created = call(&mesh, "create_group", json!({"name": "flight"}))
+        .await
+        .unwrap();
+    assert_eq!(
+        created,
+        json!({"name": "flight", "members": [{"email": SELF, "name": "Me", "role": "owner"}]})
+    );
+
+    let changed = call(
+        &mesh,
+        "set_group_member",
+        json!({"group": "flight", "person": "ana@example.com", "role": "member"}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(changed, group("flight"));
+
+    let lockout = call(
+        &mesh,
+        "set_group_member",
+        json!({"group": "flight", "person": SELF, "role": "none"}),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        lockout,
+        format!(
+            "membership of `{SELF}` in group `flight`: the Hub answered 409 Conflict: The \
+             group would have no owner: you would no longer own the group; make another \
+             member its owner first"
+        )
+    );
+
+    let requests = requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 4);
+    assert_eq!(requests[0].method, Method::GET);
+    assert_eq!(requests[0].path, format!("/lore/{MESH_PROFILE}/groups"));
+    assert_eq!(requests[1].method, Method::POST);
+    assert_eq!(requests[1].path, format!("/lore/{MESH_PROFILE}/groups"));
+    assert_eq!(requests[1].body, Some(json!({"name": "flight"})));
+    for seen in &requests[2..] {
+        assert_eq!(seen.method, Method::PUT);
+        assert_eq!(
+            seen.path,
+            format!("/lore/{MESH_PROFILE}/groups/flight/members")
+        );
+    }
+    assert_eq!(
+        requests[2].body,
+        Some(json!({"person": "ana@example.com", "role": "member"}))
+    );
+    assert_eq!(
+        requests[3].body,
+        Some(json!({"person": SELF, "role": "none"}))
     );
     assert_as_the_caller(&requests);
 }

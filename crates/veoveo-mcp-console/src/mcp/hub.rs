@@ -10,15 +10,18 @@ use reqwest::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use veoveo_hub_sdk::{HubProfileId, client::CallError, client::HubClient};
 
-use crate::contract::{ComputerStatus, ComputerVersion, InstanceStatus, Repository};
+use crate::contract::{
+    ComputerStatus, ComputerVersion, Group, Groups, InstanceStatus, MemberRole, Repository,
+    RepositoryAccess, ShareAccess,
+};
 
 /// The longest `status` waits for an instance to settle, as the Hub bounds it.
 pub const MAX_WAIT: Duration = Duration::from_secs(60);
 /// How long a request may take beyond the wait it asks for.
 const REQUEST_MARGIN: Duration = Duration::from_secs(15);
-/// How long a repository creation may take: the Hub bounds each of its steps, Lore's
-/// creation and the renewal of the caller's Computer, at 30 seconds to connect and 30
-/// to answer. Giving up earlier would leave the agent without the created `id`.
+/// How long a repository creation may take: the Hub bounds Lore's creation at 30
+/// seconds to connect and 30 to answer, then publishes the registration. Giving up
+/// earlier would leave the agent without the created `id`.
 const CREATE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The Hub at the origin of its issuer.
@@ -81,6 +84,26 @@ struct CreateRepositoryBody<'a> {
     name: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     id: Option<&'a str>,
+}
+
+#[derive(Serialize)]
+struct AccessBody<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    person: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    group: Option<&'a str>,
+    access: ShareAccess,
+}
+
+#[derive(Serialize)]
+struct GroupBody<'a> {
+    name: &'a str,
+}
+
+#[derive(Serialize)]
+struct MemberBody<'a> {
+    person: &'a str,
+    role: MemberRole,
 }
 
 impl Hub {
@@ -175,6 +198,107 @@ impl Hub {
         let body = serde_json::to_vec(&CreateRepositoryBody { name, id })?;
         let answer = self
             .send(client, Method::POST, url, Some(body), CREATE_TIMEOUT)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `GET /lore/{profile}/repositories/{id}/access`: who may reach `repository`.
+    pub async fn repository_access(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+        repository: &str,
+    ) -> Result<RepositoryAccess, HubError> {
+        let url = self.route(
+            &[
+                "lore",
+                profile.as_str(),
+                "repositories",
+                repository,
+                "access",
+            ],
+            &[],
+        );
+        let answer = self
+            .send(client, Method::GET, url, None, REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `PUT /lore/{profile}/repositories/{id}/access` with `{"person": …}` or
+    /// `{"group": …}` and `{"access": …}`: an owner sets or removes that access.
+    pub async fn share_repository(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+        repository: &str,
+        person: Option<&str>,
+        group: Option<&str>,
+        access: ShareAccess,
+    ) -> Result<RepositoryAccess, HubError> {
+        let url = self.route(
+            &[
+                "lore",
+                profile.as_str(),
+                "repositories",
+                repository,
+                "access",
+            ],
+            &[],
+        );
+        let body = serde_json::to_vec(&AccessBody {
+            person,
+            group,
+            access,
+        })?;
+        let answer = self
+            .send(client, Method::PUT, url, Some(body), REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `GET /lore/{profile}/groups`: the groups the caller belongs to.
+    pub async fn groups(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+    ) -> Result<Groups, HubError> {
+        let url = self.route(&["lore", profile.as_str(), "groups"], &[]);
+        let answer = self
+            .send(client, Method::GET, url, None, REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `POST /lore/{profile}/groups` with `{"name": …}`: a group the caller owns.
+    pub async fn create_group(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+        name: &str,
+    ) -> Result<Group, HubError> {
+        let url = self.route(&["lore", profile.as_str(), "groups"], &[]);
+        let body = serde_json::to_vec(&GroupBody { name })?;
+        let answer = self
+            .send(client, Method::POST, url, Some(body), REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `PUT /lore/{profile}/groups/{name}/members` with `{"person": …, "role": …}`: an
+    /// owner of the group sets or removes a membership.
+    pub async fn set_group_member(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+        group: &str,
+        person: &str,
+        role: MemberRole,
+    ) -> Result<Group, HubError> {
+        let url = self.route(&["lore", profile.as_str(), "groups", group, "members"], &[]);
+        let body = serde_json::to_vec(&MemberBody { person, role })?;
+        let answer = self
+            .send(client, Method::PUT, url, Some(body), REQUEST_MARGIN)
             .await?;
         decode(&answer)
     }
