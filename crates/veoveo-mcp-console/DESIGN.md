@@ -44,6 +44,7 @@ The console answers these questions for an agent, as its user:
 - Which branch's instance serves me each server?
 - Which repositories does the Hub build and serve for me?
 - Where do I push a new repository of my own?
+- Who can reach my repository, and how do I share it with a person or a group?
 - Is my Computer current, what does an update bring, and will you restart it?
 
 | Tool | Hub route | Result |
@@ -53,6 +54,11 @@ The console answers these questions for an agent, as its user:
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
 | `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}` and the optional `"id"` | `Repository`: its ID, name and clone `remote`, `<Lore remote>/<id>` |
+| `repository_access(repository)` | `GET /lore/{profile}/repositories/{id}/access` | `RepositoryAccess`: the repository and each person, by email and name, and group, by name, that may reach it, with its level, `member` or `owner` |
+| `share_repository(repository, person \| group, access)` | `PUT /lore/{profile}/repositories/{id}/access` with `{"person": …}` or `{"group": …}` and `{"access": …}`, one of `member`, `owner` or `none` | `RepositoryAccess` after the change |
+| `groups()` | `GET /lore/{profile}/groups` | `Groups`: each group the caller belongs to, with its members by email and name and their roles |
+| `create_group(name)` | `POST /lore/{profile}/groups` with `{"name": …}` | `Group`: its name, with the caller as its owner |
+| `set_group_member(group, person, role)` | `PUT /lore/{profile}/groups/{name}/members` with `{"person": …, "role": …}`, one of `member`, `owner` or `none` | `Group` after the change |
 | `computer(restart?)` | `GET /computer/status`; with `restart: true`, `POST /computer/restart` | `ComputerStatus`: the version the caller's Computer runs and the current one, whether an update is available and what it brings, a restart that runs or the last one's failure, a blocking cause, and an update installed since the caller was last told |
 
 Every tool requires `console.use`. `{profile}` is the profile the caller reached the
@@ -67,7 +73,8 @@ grant without declaring uses of any other server. Each tool takes the bearer
 Hub's token endpoint for the caller's profile, naming no permissions, cached for the
 request. The Hub admits it as the caller and decides each route by the caller's own
 grants: a selection is the caller's own, an instance's status and a watch need the
-caller's grant on the repository, and a creation needs the caller's tenant. A Hub
+caller's grant on the repository, a creation needs the caller's tenant, and a share or a
+membership needs the caller to own the repository or the group. A Hub
 refusal, such as 403 without a grant or 404 without an instance, is the tool's error
 result, naming what was refused, the HTTP status and the Hub's RFC 9457 title and
 detail, and the problem's `id` extension when it has one. Path segments are
@@ -75,12 +82,19 @@ percent-encoded one by one.
 
 `create_repository` is one Hub call: the Hub creates the repository in its Lore
 deployment as the caller, publishes the revision that registers it and assigns the
-caller its owner, renews the Lore access of the caller's Computers, and only then
-answers, so the caller's first push is admitted. A name Lore holds already is 409. A
+caller its owner, and answers once that revision is active, so the caller's first push
+is admitted. A name Lore holds already is 409. A
 503 that names an `id` is a repository Lore created but the Hub did not register;
 calling again with the same name and that `id` registers it, and nobody but its
 creator can. The call waits up to 120 seconds, since giving up earlier would lose the
 created `id`.
+
+`share_repository` and `set_group_member` name a person by the email they sign in with
+and a group by its name; one argument of `person` and `group` is required. Only an owner
+shares, and the Hub refuses a change that would leave the caller without `owner`, so the
+error says so. A person who has never signed in cannot be named yet. Access through a
+group follows its members: adding someone to a group gives them every repository shared
+with it, within the Lore token lifetime.
 
 `InstanceStatus` follows the Hub's answer and reads only the fields it names; a phase
 or stage it does not know fails the call with the Hub's value.
