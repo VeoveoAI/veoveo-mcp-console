@@ -147,6 +147,8 @@ pub enum MemberRole {
 #[serde(rename_all = "camelCase")]
 #[derive(veoveo_hub_sdk::SingleOutput)]
 pub struct Group {
+    /// The ID a grant outside Lore names the group by, such as a grant of an artifact.
+    pub id: String,
     pub name: String,
     pub members: Vec<Member>,
 }

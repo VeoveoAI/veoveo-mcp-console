@@ -192,8 +192,11 @@ fn access(repository: &str) -> Value {
 }
 
 /// The fake Hub's group `name`, with the caller as its owner.
+/// The ID the Hub answers for every group of the fixture.
+const GROUP_ID: &str = "5f0c1d2e3a4b5c6d7e8f90a1b2c3d4e5";
+
 fn group(name: &str) -> Value {
-    json!({"name": name, "members": [
+    json!({"id": GROUP_ID, "name": name, "members": [
         {"email": SELF, "name": "Me", "role": "owner"},
         {"email": "ana@example.com", "name": "Ana", "role": "member"}
     ]})
@@ -222,7 +225,7 @@ fn sharing(method: &Method, path: &str, body: &Value) -> Option<Response> {
         }
         (&Method::POST, ["lore", _, "groups"]) => (
             StatusCode::CREATED,
-            axum::Json(json!({"name": body["name"], "members": [
+            axum::Json(json!({"id": GROUP_ID, "name": body["name"], "members": [
                 {"email": SELF, "name": "Me", "role": "owner"}
             ]})),
         )
@@ -776,7 +779,7 @@ async fn groups_are_listed_created_and_changed_through_the_hub() {
         .unwrap();
     assert_eq!(
         created,
-        json!({"name": "flight", "members": [{"email": SELF, "name": "Me", "role": "owner"}]})
+        json!({"id": GROUP_ID, "name": "flight", "members": [{"email": SELF, "name": "Me", "role": "owner"}]})
     );
 
     let changed = call(

@@ -56,8 +56,8 @@ The console answers these questions for an agent, as its user:
 | `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}` and the optional `"id"` | `Repository`: its ID, name and clone `remote`, `<Lore remote>/<id>` |
 | `repository_access(repository)` | `GET /lore/{profile}/repositories/{id}/access` | `RepositoryAccess`: the repository and each person, by email and name, and group, by name, that may reach it, with its level, `member` or `owner` |
 | `share_repository(repository, person \| group, access)` | `PUT /lore/{profile}/repositories/{id}/access` with `{"person": …}` or `{"group": …}` and `{"access": …}`, one of `member`, `owner` or `none` | `RepositoryAccess` after the change |
-| `groups()` | `GET /lore/{profile}/groups` | `Groups`: each group the caller belongs to, with its members by email and name and their roles |
-| `create_group(name)` | `POST /lore/{profile}/groups` with `{"name": …}` | `Group`: its name, with the caller as its owner |
+| `groups()` | `GET /lore/{profile}/groups` | `Groups`: each group the caller belongs to, with its ID, its members by email and name and their roles |
+| `create_group(name)` | `POST /lore/{profile}/groups` with `{"name": …}` | `Group`: its ID and name, with the caller as its owner |
 | `set_group_member(group, person, role)` | `PUT /lore/{profile}/groups/{name}/members` with `{"person": …, "role": …}`, one of `member`, `owner` or `none` | `Group` after the change |
 | `computer(restart?)` | `GET /computer/status`; with `restart: true`, `POST /computer/restart` | `ComputerStatus`: the version the caller's Computer runs and the current one, whether an update is available and what it brings, a restart that runs or the last one's failure, a blocking cause, and an update installed since the caller was last told |
 
@@ -94,7 +94,9 @@ and a group by its name; one argument of `person` and `group` is required. Only 
 shares, and the Hub refuses a change that would leave the caller without `owner`, so the
 error says so. A person who has never signed in cannot be named yet. Access through a
 group follows its members: adding someone to a group gives them every repository shared
-with it, within the Lore token lifetime.
+with it, within the Lore token lifetime. A group is the same group to every server: a
+server that grants to groups, such as Artifact, names it by the ID `groups` answers, and a
+member holds that grant from their next call.
 
 `InstanceStatus` follows the Hub's answer and reads only the fields it names; a phase
 or stage it does not know fails the call with the Hub's value.
