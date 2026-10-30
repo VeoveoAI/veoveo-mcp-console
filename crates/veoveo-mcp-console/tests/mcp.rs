@@ -83,6 +83,7 @@ fn computer_status(restarting: bool) -> Value {
         "whatsNew": {
             "note": "Faster builds\nThe image adds a compiler.",
             "image": {"from": "registry.internal/computer@sha256:1", "to": "registry.internal/computer@sha256:2"},
+            "supervisor": {"from": "registry.internal/openshell/supervisor@sha256:3", "to": "registry.internal/openshell/supervisor@sha256:4"},
             "networkRulesAdded": [{"name": "model", "endpoints": ["model.example:443"]}]
         }
     });

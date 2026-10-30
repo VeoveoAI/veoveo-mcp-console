@@ -66,8 +66,9 @@ pub struct ComputerVersion {
     pub summary: Option<String>,
 }
 
-/// What a version brings over another: its release note, a new image and the network
-/// endpoints its rules gained or lost.
+/// What a version brings over another: its release note, a new image, a new supervisor
+/// or sandbox runtime image from the gateway, and the network endpoints its rules gained
+/// or lost.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WhatsNew {
@@ -75,6 +76,12 @@ pub struct WhatsNew {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<ImageChange>,
+    /// The supervisor image every new sandbox runs, when the gateway reports another.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supervisor: Option<ImageChange>,
+    /// The sandbox runtime image every new sandbox runs, when the gateway reports another.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sandbox_runtime: Option<ImageChange>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub network_rules_added: Vec<NetworkRule>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
