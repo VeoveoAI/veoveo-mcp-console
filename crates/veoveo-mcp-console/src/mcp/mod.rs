@@ -21,10 +21,10 @@ use veoveo_hub_sdk::{
 
 use crate::contract::{
     ComputerRequest, ComputerStatus, ConsolePermission, CreateGroupRequest,
-    CreateRepositoryRequest, DEFAULT_LOG_LINES, Group, Groups, GroupsRequest, InstanceStatus, Logs,
-    LogsRequest, MAX_LOG_LINES, Repository, RepositoryAccess, RepositoryAccessRequest,
-    SelectRequest, Selection, SetGroupMemberRequest, ShareRepositoryRequest, StatusRequest,
-    WatchRequest, Watching,
+    CreateRepositoryRequest, DEFAULT_LOG_LINES, DeleteGroupRequest, Group, Groups, GroupsRequest,
+    InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES, Repository, RepositoryAccess,
+    RepositoryAccessRequest, SelectRequest, Selection, SetGroupMemberRequest,
+    ShareRepositoryRequest, StatusRequest, WatchRequest, Watching,
 };
 pub use declarations::{REGISTRATION, registration};
 pub use hub::Hub;
@@ -274,6 +274,18 @@ impl ConsoleMcp {
                 )
             })
     }
+
+    async fn delete_group(
+        &self,
+        request: DeleteGroupRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<Groups, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .delete_group(&client, &profile, &request.group)
+            .await
+            .map_err(|error| refused(format_args!("deletion of group `{}`", request.group), error))
+    }
 }
 
 impl ConsoleMcp {
@@ -398,6 +410,14 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
             |domain, request, context| async move {
                 domain.set_group_member(request, context).await
             },
+        )
+        .tool::<DeleteGroupRequest, _, _>(
+            "Delete a group you own. Its members lose what was shared with it: its \
+             repositories within five minutes, and every grant naming its `id`, such as an \
+             artifact's. Refused while the group is the one owner of a repository; make \
+             someone else an owner of it first. Answers the groups you belong to now.",
+            policy(),
+            |domain, request, context| async move { domain.delete_group(request, context).await },
         )
         .calls_hub()
         .descriptions(computer::DESCRIPTIONS.clone())

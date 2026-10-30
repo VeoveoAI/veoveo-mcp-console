@@ -303,6 +303,21 @@ impl Hub {
         decode(&answer)
     }
 
+    /// `DELETE /lore/{profile}/groups/{name}`: an owner deletes the group; the caller's
+    /// groups after it.
+    pub async fn delete_group(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+        group: &str,
+    ) -> Result<Groups, HubError> {
+        let url = self.route(&["lore", profile.as_str(), "groups", group], &[]);
+        let answer = self
+            .send(client, Method::DELETE, url, None, REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
     /// `GET /computer/status`: the caller's Computer. The Hub admits the caller's token
     /// for its one Computers profile.
     pub async fn computer(&self, client: &HubClient) -> Result<ComputerStatus, HubError> {

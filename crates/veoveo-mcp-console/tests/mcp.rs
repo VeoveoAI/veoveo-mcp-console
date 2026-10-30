@@ -241,6 +241,14 @@ fn sharing(method: &Method, path: &str, body: &Value) -> Option<Response> {
                 axum::Json(group(name)).into_response()
             }
         }
+        (&Method::DELETE, ["lore", _, "groups", "flight"]) => {
+            axum::Json(json!({"groups": []})).into_response()
+        }
+        (&Method::DELETE, ["lore", _, "groups", _]) => problem(
+            StatusCode::CONFLICT,
+            "The group is a repository's one owner",
+            "make a person or another group an owner of each repository the group owns, then delete it",
+        ),
         _ => return None,
     };
     Some(answer)
@@ -332,6 +340,7 @@ fn hub_routes(requests: Requests) -> Router {
         .route("/lore/{profile}/repositories", any(hub_route))
         .route("/lore/{profile}/repositories/{id}/access", any(hub_route))
         .route("/lore/{profile}/groups", any(hub_route))
+        .route("/lore/{profile}/groups/{name}", any(hub_route))
         .route("/lore/{profile}/groups/{name}/members", any(hub_route))
         .route("/selection/{profile}/{server}", any(hub_route))
         .route("/computer/status", get(hub_route))
@@ -482,6 +491,7 @@ async fn every_tool_requires_the_console_permission_and_nothing_else() {
             "computer",
             "create_group",
             "create_repository",
+            "delete_group",
             "groups",
             "logs",
             "repository_access",
@@ -807,14 +817,28 @@ async fn groups_are_listed_created_and_changed_through_the_hub() {
         )
     );
 
+    let deleted = call(&mesh, "delete_group", json!({"group": "flight"}))
+        .await
+        .unwrap();
+    assert_eq!(deleted, json!({"groups": []}));
+    let owning = call(&mesh, "delete_group", json!({"group": "owners"}))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        owning,
+        "deletion of group `owners`: the Hub answered 409 Conflict: The group is a \
+         repository's one owner: make a person or another group an owner of each repository \
+         the group owns, then delete it"
+    );
+
     let requests = requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 6);
     assert_eq!(requests[0].method, Method::GET);
     assert_eq!(requests[0].path, format!("/lore/{MESH_PROFILE}/groups"));
     assert_eq!(requests[1].method, Method::POST);
     assert_eq!(requests[1].path, format!("/lore/{MESH_PROFILE}/groups"));
     assert_eq!(requests[1].body, Some(json!({"name": "flight"})));
-    for seen in &requests[2..] {
+    for seen in &requests[2..4] {
         assert_eq!(seen.method, Method::PUT);
         assert_eq!(
             seen.path,
@@ -829,6 +853,11 @@ async fn groups_are_listed_created_and_changed_through_the_hub() {
         requests[3].body,
         Some(json!({"person": SELF, "role": "none"}))
     );
+    for (seen, name) in requests[4..].iter().zip(["flight", "owners"]) {
+        assert_eq!(seen.method, Method::DELETE);
+        assert_eq!(seen.path, format!("/lore/{MESH_PROFILE}/groups/{name}"));
+        assert_eq!(seen.body, None);
+    }
     assert_as_the_caller(&requests);
 }
 

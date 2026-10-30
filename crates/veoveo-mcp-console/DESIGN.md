@@ -59,6 +59,7 @@ The console answers these questions for an agent, as its user:
 | `groups()` | `GET /lore/{profile}/groups` | `Groups`: each group the caller belongs to, with its ID, its members by email and name and their roles |
 | `create_group(name)` | `POST /lore/{profile}/groups` with `{"name": …}` | `Group`: its ID and name, with the caller as its owner |
 | `set_group_member(group, person, role)` | `PUT /lore/{profile}/groups/{name}/members` with `{"person": …, "role": …}`, one of `member`, `owner` or `none` | `Group` after the change |
+| `delete_group(group)` | `DELETE /lore/{profile}/groups/{name}` | `Groups`: the caller's groups after the deletion |
 | `computer(restart?)` | `GET /computer/status`; with `restart: true`, `POST /computer/restart` | `ComputerStatus`: the version the caller's Computer runs and the current one, whether an update is available and what it brings, a restart that runs or the last one's failure, a blocking cause, and an update installed since the caller was last told |
 
 Every tool requires `console.use`. `{profile}` is the profile the caller reached the
@@ -96,7 +97,10 @@ error says so. A person who has never signed in cannot be named yet. Access thro
 group follows its members: adding someone to a group gives them every repository shared
 with it, within the Lore token lifetime. A group is the same group to every server: a
 server that grants to groups, such as Artifact, names it by the ID `groups` answers, and a
-member holds that grant from their next call.
+member holds that grant from their next call. An owner deletes a group with
+`delete_group`: its repository access ends within the Lore token lifetime, and a grant
+naming its ID holds nothing from the next call, since no group is given that ID again.
+The Hub refuses the deletion while the group is the one owner of a repository.
 
 `InstanceStatus` follows the Hub's answer and reads only the fields it names; a phase
 or stage it does not know fails the call with the Hub's value.

@@ -1,5 +1,5 @@
-//! `repository_access`, `share_repository`, `groups`, `create_group` and
-//! `set_group_member`: who may reach a repository, and the groups people share
+//! `repository_access`, `share_repository`, `groups`, `create_group`, `set_group_member`
+//! and `delete_group`: who may reach a repository, and the groups people share
 //! repositories with, as the Hub answers its `/lore/{profile}` access and group routes.
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -128,6 +128,15 @@ pub struct SetGroupMemberRequest {
     /// The email the person signs in with.
     pub person: String,
     pub role: MemberRole,
+}
+
+/// The arguments of `delete_group`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[veoveo_hub_sdk::tool(provider = ConsoleProvider, output = Groups, name = "delete_group")]
+pub struct DeleteGroupRequest {
+    /// The group's name.
+    pub group: String,
 }
 
 /// The role `set_group_member` sets.
