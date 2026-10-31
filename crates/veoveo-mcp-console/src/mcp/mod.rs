@@ -330,7 +330,8 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
         .tool::<StatusRequest, _, _>(
             "Why a branch of a repository serves or does not: the revision the Hub applied \
              and the one serving, the sandbox's phase, exit code, restart count and \
-             conditions, the Hub's last failure and any warning. With `wait`, answers as \
+             conditions, the Hub's last failure, any warning, and the providers the branch \
+             requested that its repository is not granted. With `wait`, answers as \
              soon as the applied revision serves or fails, after at most 60 seconds. After \
              a push, call it with `wait`; on failure, read `logs`.",
             policy(),

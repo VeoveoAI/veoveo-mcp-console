@@ -117,7 +117,8 @@ fn instance() -> Value {
         "appliedRevision": "a".repeat(64),
         "servingRevision": null,
         "failed": null,
-        "warning": "3 instances above the cap of 2"
+        "warning": "3 instances above the cap of 2",
+        "ungrantedProviders": ["vv-factory-mail"]
     })
 }
 
@@ -545,6 +546,7 @@ async fn status_asks_the_hub_as_the_caller_and_waits_at_most_a_minute() {
     assert_eq!(status["appliedRevision"], "a".repeat(64));
     assert_eq!(status["servingRevision"], Value::Null);
     assert_eq!(status["warning"], "3 instances above the cap of 2");
+    assert_eq!(status["ungrantedProviders"], json!(["vv-factory-mail"]));
 
     call(
         &mesh,

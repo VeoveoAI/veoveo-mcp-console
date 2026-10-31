@@ -49,7 +49,7 @@ The console answers these questions for an agent, as its user:
 
 | Tool | Hub route | Result |
 |---|---|---|
-| `status(repository, branch, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=` | `InstanceStatus`: deployment, workspace, sandbox name and ID, OpenShell's phase, exit code, restart count and conditions, the applied and serving revision, the Hub's last failure and any warning |
+| `status(repository, branch, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=` | `InstanceStatus`: deployment, workspace, sandbox name and ID, OpenShell's phase, exit code, restart count and conditions, the applied and serving revision, the Hub's last failure, any warning and the requested providers the repository is not granted |
 | `logs(repository, branch, since?, limit?)` | `status` without waiting, then the log store | `Logs`: the sandbox's name and ID and its latest lines, oldest first, each with its time, its source (`stdout`, `stderr` or `denied`) and its text, and whether older lines were left out |
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
