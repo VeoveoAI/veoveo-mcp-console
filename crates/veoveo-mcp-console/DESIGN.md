@@ -50,7 +50,7 @@ The console answers these questions for an agent, as its user:
 | Tool | Hub route | Result |
 |---|---|---|
 | `status(repository, branch, link?, wait?)` | `GET /factory/{profile}/instance?repository=&branch=&wait=`, with `&link=` for a link's runner | `InstanceStatus`: deployment, workspace, sandbox name and ID, OpenShell's phase, exit code, restart count and conditions, the applied and serving revision, the Hub's last failure, any warning and the requested providers the repository is not granted; for a runner also its link, linked repository, tracked branch by ID and name and the linked revision applied, `linkedWatch` and `runnerFailure` |
-| `logs(repository, branch, since?, limit?)` | `status` without waiting, then the log store | `Logs`: the sandbox's name and ID and its latest lines, oldest first, each with its time, its source (`stdout`, `stderr` or `denied`) and its text, and whether older lines were left out |
+| `logs(repository, branch, link?, since?, limit?)` | `status` without waiting, of the link's runner with `link`, then the log store | `Logs`: the sandbox's name and ID and its latest lines, oldest first, each with its time, its source (`stdout`, `stderr` or `denied`) and its text, and whether older lines were left out |
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
 | `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}` and the optional `"id"` | `Repository`: its ID, name and clone `remote`, `<Lore remote>/<id>` |
@@ -123,7 +123,8 @@ who the Hub watches the linked repository as and why the last subscription as th
 failed; it is absent while nobody watches it. `runnerFailure` is why the Hub could not
 run the link at the revision it names, such as a refused network rule of the linked
 repository; the runner keeps serving what it applied until a push runs it. A link with
-no runner is the Hub's 404, whose detail says why. `logs` reads a branch's own instance.
+no runner is the Hub's 404, whose detail says why. `logs` with `link` reads the runner's
+sandbox, with the runner's status as its access check.
 
 ### The Computer Tool
 
@@ -229,6 +230,6 @@ instance whose liveness the Hub reads as the server's health.
 |---|---|
 | `src/contract` unit tests | The permission and scope derive from the slug |
 | `src/mcp` unit tests | Setup, documents, the registered endpoint, the declaration of calls to the Hub, route encoding, refusal text, the log query and line bounds |
-| `tests/mcp.rs` | Each tool through the SDK's in-process mesh, which exchanges the caller's token as the Hub does, against fake Hub routes: method, path, query and body, `status` of a link's runner with its runner fields, linked watch and runner failure and the Hub's 404 for a link without one, the exchanged token's caller, acting server and empty permissions, refusals as tool errors, the 60-second cap and the permission every tool requires; `logs` against a fake log store holding records in VictoriaLogs' answer form: the status read as the access check, the exact query and `start`, sources, order, the limit and its bound, cut lines, an instance without a sandbox and the log store's refusal |
+| `tests/mcp.rs` | Each tool through the SDK's in-process mesh, which exchanges the caller's token as the Hub does, against fake Hub routes: method, path, query and body, `status` of a link's runner with its runner fields, linked watch and runner failure and the Hub's 404 for a link without one, `logs` of a link's runner by its sandbox, the exchanged token's caller, acting server and empty permissions, refusals as tool errors, the 60-second cap and the permission every tool requires; `logs` against a fake log store holding records in VictoriaLogs' answer form: the status read as the access check, the exact query and `start`, sources, order, the limit and its bound, cut lines, an instance without a sandbox and the log store's refusal |
 | `src/server` unit tests | Configuration and offline registration metadata |
 | `tests/sql_confinement.rs` | The server holds no SQL outside its schema |

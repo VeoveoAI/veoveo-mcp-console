@@ -130,6 +130,8 @@ const FAILING_LINK: &str = "team-b";
 /// A link with no runner.
 const NO_RUNNER: &str = "team-c";
 const LINKED: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+/// The sandbox of the runner of [`LINK`].
+const RUNNER_SANDBOX_ID: &str = "0b5e7a2c-6f1d-4e3a-9c8b-7d6e5f4a3b2c";
 const TRACKED: &str = "1111111111111111111111111111111a";
 
 /// The Hub's answer for the runner of `link`.
@@ -140,6 +142,7 @@ fn runner(link: &str) -> Value {
     runner["sandbox"]["restartCount"] = json!(0);
     runner["sandbox"]["conditions"] = json!([]);
     runner["servingRevision"] = json!("a".repeat(64));
+    runner["sandboxId"] = json!(RUNNER_SANDBOX_ID);
     runner["warning"] = Value::Null;
     runner["ungrantedProviders"] = json!([]);
     runner["runner"] = json!({
@@ -1120,6 +1123,55 @@ async fn logs_read_the_sandbox_the_hubs_status_names_with_its_denials() {
     assert_eq!(
         queries,
         [vec![("query".to_owned(), log_query_for(SANDBOX_ID, 201))]]
+    );
+}
+
+#[tokio::test]
+async fn logs_of_a_link_read_its_runners_sandbox() {
+    let (mesh, requests, queries) = console(&[ConsolePermission::Use]).await;
+    let logs = call(
+        &mesh,
+        "logs",
+        json!({"repository": REPOSITORY, "branch": BRANCH, "link": LINK, "limit": 10}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(logs["sandboxId"], RUNNER_SANDBOX_ID);
+    assert_eq!(logs["lines"].as_array().unwrap().len(), 5);
+    // The runner's status, without waiting, is the access check and names its sandbox.
+    let requests = requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(
+        query(&requests[0]),
+        [
+            ("repository", REPOSITORY),
+            ("branch", BRANCH),
+            ("link", LINK),
+            ("wait", "0")
+        ]
+    );
+    assert_as_the_caller(&requests);
+    let queries = queries.lock().unwrap().clone();
+    assert_eq!(
+        queries,
+        [vec![(
+            "query".to_owned(),
+            log_query_for(RUNNER_SANDBOX_ID, 11)
+        )]]
+    );
+    // A link without a runner has no output to read: the Hub's refusal is the error.
+    let missing = call(
+        &mesh,
+        "logs",
+        json!({"repository": REPOSITORY, "branch": BRANCH, "link": NO_RUNNER}),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        missing.starts_with(&format!(
+            "logs of `{REPOSITORY}` branch `{BRANCH}` link `{NO_RUNNER}`: the Hub answered 404"
+        )),
+        "{missing}"
     );
 }
 

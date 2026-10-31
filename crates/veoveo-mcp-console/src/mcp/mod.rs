@@ -50,18 +50,23 @@ impl ConsoleMcp {
     }
 
     /// The instance's status is the access check: the Hub answers it only for a
-    /// caller with a grant on the repository, and it names the sandbox to read.
+    /// caller with a grant on the repository, or on a runner's linked repository, and it
+    /// names the sandbox to read.
     async fn logs(
         &self,
         request: LogsRequest,
         context: RequestContext<RoleServer>,
     ) -> Result<Logs, ToolError> {
         let (client, profile) = caller(&context)?;
-        let what = || {
-            format!(
+        let what = || match &request.link {
+            None => format!(
                 "logs of `{}` branch `{}`",
                 request.repository, request.branch
-            )
+            ),
+            Some(link) => format!(
+                "logs of `{}` branch `{}` link `{link}`",
+                request.repository, request.branch
+            ),
         };
         let status = self
             .hub
@@ -70,7 +75,7 @@ impl ConsoleMcp {
                 &profile,
                 &request.repository,
                 &request.branch,
-                None,
+                request.link.as_deref(),
                 Duration::ZERO,
             )
             .await
@@ -354,7 +359,8 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
             "An instance's output and OpenShell's network denials for it: the Lore sync, \
              the build and the server, with standard output and error marked. Returns the \
              latest `limit` lines (200, at most 1000), oldest first, across restarts; \
-             `since` starts them at a time, such as your push.",
+             `since` starts them at a time, such as your push. With `link`, the output of \
+             that link's runner instead.",
             policy(),
             |domain, request, context| async move { domain.logs(request, context).await },
         )

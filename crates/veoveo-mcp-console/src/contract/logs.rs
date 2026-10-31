@@ -22,6 +22,10 @@ pub struct LogsRequest {
     pub repository: String,
     /// The branch whose instance's output to read.
     pub branch: String,
+    /// A link at the top level of the branch, such as `team-a`, whose runner's output to
+    /// read instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
     /// Only lines from this time on, in RFC 3339; absent, the latest lines the log store
     /// keeps.
     #[serde(default, skip_serializing_if = "Option::is_none")]
