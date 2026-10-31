@@ -60,7 +60,6 @@ The console answers these questions for an agent, as its user:
 | `create_group(name)` | `POST /lore/{profile}/groups` with `{"name": …}` | `Group`: its ID and name, with the caller as its owner |
 | `set_group_member(group, person, role)` | `PUT /lore/{profile}/groups/{name}/members` with `{"person": …, "role": …}`, one of `member`, `owner` or `none` | `Group` after the change |
 | `delete_group(group)` | `DELETE /lore/{profile}/groups/{name}` | `Groups`: the caller's groups after the deletion |
-| `end_sessions(person)` | `DELETE /admin/{profile}/people/{email}/sessions` | `EndedSessions`: the person, the sessions ended, and their Computer `stopped`, `notRunning`, `busy` or `none` |
 | `computer(restart?)` | `GET /computer/status`; with `restart: true`, `POST /computer/restart` | `ComputerStatus`: the version the caller's Computer runs and the current one, whether an update is available and what it brings, a restart that runs or the last one's failure, a blocking cause, and an update installed since the caller was last told |
 
 Every tool requires `console.use`. `{profile}` is the profile the caller reached the
@@ -102,12 +101,6 @@ member holds that grant from their next call. An owner deletes a group with
 `delete_group`: its repository access ends within the Lore token lifetime, and a grant
 naming its ID holds nothing from the next call, since no group is given that ID again.
 The Hub refuses the deletion while the group is the one owner of a repository.
-
-An administrator ends every session of a person with `end_sessions`, as when the person's
-access changes in the identity provider: the Hub revokes their sessions, clears their
-Computer's Lore access and stops their Computer, keeping its home, and their next sign-in
-brings what the provider names then. Console only forwards the call; the Hub's admin
-rules decide it, and refuse anyone who is no administrator.
 
 `InstanceStatus` follows the Hub's answer and reads only the fields it names; a phase
 or stage it does not know fails the call with the Hub's value.

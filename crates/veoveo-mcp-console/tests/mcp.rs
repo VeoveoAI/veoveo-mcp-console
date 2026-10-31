@@ -250,15 +250,6 @@ fn sharing(method: &Method, path: &str, body: &Value) -> Option<Response> {
             "The group is a repository's one owner",
             "make a person or another group an owner of each repository the group owns, then delete it",
         ),
-        (&Method::DELETE, ["admin", _, "people", "ana@example.com", "sessions"]) => axum::Json(
-            json!({"person": "ana@example.com", "sessionsEnded": 2, "computer": "stopped"}),
-        )
-        .into_response(),
-        (&Method::DELETE, ["admin", _, "people", _, "sessions"]) => problem(
-            StatusCode::NOT_FOUND,
-            "No one has signed in with this email",
-            "no one in your tenant has signed in with this one, so they hold no session",
-        ),
         _ => return None,
     };
     Some(answer)
@@ -352,7 +343,6 @@ fn hub_routes(requests: Requests) -> Router {
         .route("/lore/{profile}/groups", any(hub_route))
         .route("/lore/{profile}/groups/{name}", any(hub_route))
         .route("/lore/{profile}/groups/{name}/members", any(hub_route))
-        .route("/admin/{profile}/people/{email}/sessions", any(hub_route))
         .route("/selection/{profile}/{server}", any(hub_route))
         .route("/computer/status", get(hub_route))
         .route("/computer/restart", any(hub_route))
@@ -503,7 +493,6 @@ async fn every_tool_requires_the_console_permission_and_nothing_else() {
             "create_group",
             "create_repository",
             "delete_group",
-            "end_sessions",
             "groups",
             "logs",
             "repository_access",
@@ -786,47 +775,6 @@ async fn sharing_reads_and_sets_a_repositorys_access_through_the_hub() {
         requests[3].body,
         Some(json!({"person": STRANGER, "access": "owner"}))
     );
-    assert_as_the_caller(&requests);
-}
-
-#[tokio::test]
-async fn an_administrator_ends_a_persons_sessions_through_the_hub() {
-    let (mesh, requests, _) = console(&[ConsolePermission::Use]).await;
-
-    let ended = call(&mesh, "end_sessions", json!({"person": "ana@example.com"}))
-        .await
-        .unwrap();
-    assert_eq!(
-        ended,
-        json!({"person": "ana@example.com", "sessionsEnded": 2, "computer": "stopped"})
-    );
-    let unknown = call(
-        &mesh,
-        "end_sessions",
-        json!({"person": "nobody@example.com"}),
-    )
-    .await
-    .unwrap_err();
-    assert_eq!(
-        unknown,
-        "ending the sessions of `nobody@example.com`: the Hub answered 404 Not Found: No one \
-         has signed in with this email: no one in your tenant has signed in with this one, so \
-         they hold no session"
-    );
-
-    let requests = requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 2);
-    for (seen, person) in requests
-        .iter()
-        .zip(["ana@example.com", "nobody@example.com"])
-    {
-        assert_eq!(seen.method, Method::DELETE);
-        assert_eq!(
-            seen.path,
-            format!("/admin/{MESH_PROFILE}/people/{person}/sessions")
-        );
-        assert_eq!(seen.body, None);
-    }
     assert_as_the_caller(&requests);
 }
 
