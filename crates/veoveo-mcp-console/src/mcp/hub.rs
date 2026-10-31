@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use veoveo_hub_sdk::{HubProfileId, client::CallError, client::HubClient};
 
 use crate::contract::{
-    ComputerStatus, ComputerVersion, Group, Groups, InstanceStatus, MemberRole, Repository,
-    RepositoryAccess, ShareAccess,
+    ComputerStatus, ComputerVersion, EndedSessions, Group, Groups, InstanceStatus, MemberRole,
+    Repository, RepositoryAccess, ShareAccess,
 };
 
 /// The longest `status` waits for an instance to settle, as the Hub bounds it.
@@ -312,6 +312,24 @@ impl Hub {
         group: &str,
     ) -> Result<Groups, HubError> {
         let url = self.route(&["lore", profile.as_str(), "groups", group], &[]);
+        let answer = self
+            .send(client, Method::DELETE, url, None, REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `DELETE /admin/{profile}/people/{email}/sessions`: an administrator ends every
+    /// session of the person and stops their Computer.
+    pub async fn end_sessions(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+        person: &str,
+    ) -> Result<EndedSessions, HubError> {
+        let url = self.route(
+            &["admin", profile.as_str(), "people", person, "sessions"],
+            &[],
+        );
         let answer = self
             .send(client, Method::DELETE, url, None, REQUEST_MARGIN)
             .await?;

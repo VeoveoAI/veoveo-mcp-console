@@ -62,6 +62,7 @@ The Hub decides; its refusal is the tool's error, with its status and problem de
 | `create_group(name)` | `POST /lore/{profile}/groups`; the caller owns the new group |
 | `set_group_member(group, person, role)` | `PUT /lore/{profile}/groups/{name}/members`; an owner of the group sets `member`, `owner` or `none` |
 | `delete_group(group)` | `DELETE /lore/{profile}/groups/{name}`; an owner deletes the group with its repository access, and answers the caller's groups |
+| `end_sessions(person)` | `DELETE /admin/{profile}/people/{email}/sessions`; an administrator ends every session of the person and stops their Computer, keeping its home |
 | `computer(restart?)` | `GET /computer/status`, or with `restart: true` `POST /computer/restart`, which the Hub answers before it restarts the caller's Computer at the current version. Its description names the current version and its summary from the Hub's public `GET /computer/version`, read about every 30 s; a change of version changes the description and tells the Hub that the tool list changed |
 
 ## Configuration

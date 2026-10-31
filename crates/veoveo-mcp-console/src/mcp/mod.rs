@@ -21,10 +21,10 @@ use veoveo_hub_sdk::{
 
 use crate::contract::{
     ComputerRequest, ComputerStatus, ConsolePermission, CreateGroupRequest,
-    CreateRepositoryRequest, DEFAULT_LOG_LINES, DeleteGroupRequest, Group, Groups, GroupsRequest,
-    InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES, Repository, RepositoryAccess,
-    RepositoryAccessRequest, SelectRequest, Selection, SetGroupMemberRequest,
-    ShareRepositoryRequest, StatusRequest, WatchRequest, Watching,
+    CreateRepositoryRequest, DEFAULT_LOG_LINES, DeleteGroupRequest, EndSessionsRequest,
+    EndedSessions, Group, Groups, GroupsRequest, InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES,
+    Repository, RepositoryAccess, RepositoryAccessRequest, SelectRequest, Selection,
+    SetGroupMemberRequest, ShareRepositoryRequest, StatusRequest, WatchRequest, Watching,
 };
 pub use declarations::{REGISTRATION, registration};
 pub use hub::Hub;
@@ -286,6 +286,23 @@ impl ConsoleMcp {
             .await
             .map_err(|error| refused(format_args!("deletion of group `{}`", request.group), error))
     }
+
+    async fn end_sessions(
+        &self,
+        request: EndSessionsRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<EndedSessions, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .end_sessions(&client, &profile, &request.person)
+            .await
+            .map_err(|error| {
+                refused(
+                    format_args!("ending the sessions of `{}`", request.person),
+                    error,
+                )
+            })
+    }
 }
 
 impl ConsoleMcp {
@@ -418,6 +435,14 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
              someone else an owner of it first. Answers the groups you belong to now.",
             policy(),
             |domain, request, context| async move { domain.delete_group(request, context).await },
+        )
+        .tool::<EndSessionsRequest, _, _>(
+            "For administrators: end every Hub session of a person, by the email they sign \
+             in with, and stop their Computer, keeping its home, as when their access \
+             changes in the identity provider. Their next sign-in brings what it names then. \
+             Answers how many sessions ended and what happened to their Computer.",
+            policy(),
+            |domain, request, context| async move { domain.end_sessions(request, context).await },
         )
         .calls_hub()
         .descriptions(computer::DESCRIPTIONS.clone())

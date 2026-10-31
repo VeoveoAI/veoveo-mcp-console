@@ -5,6 +5,7 @@ use veoveo_types::ServerSlug;
 
 mod computer;
 mod logs;
+mod people;
 mod permissions;
 mod repository;
 mod selection;
@@ -18,6 +19,7 @@ pub use computer::{
 pub use logs::{
     DEFAULT_LOG_LINES, LogLine, LogSource, Logs, LogsRequest, MAX_LOG_LINE_BYTES, MAX_LOG_LINES,
 };
+pub use people::{ComputerStop, EndSessionsRequest, EndedSessions};
 pub use permissions::{ConsolePermission, ConsoleScope};
 pub use repository::{CreateRepositoryRequest, Repository};
 pub use selection::{SelectRequest, Selection, WatchRequest, Watching};
