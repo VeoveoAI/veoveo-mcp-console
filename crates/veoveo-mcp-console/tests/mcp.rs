@@ -122,6 +122,49 @@ fn instance() -> Value {
     })
 }
 
+/// A runner of a link of the branch, serving the linked repository's tracked branch.
+const LINK: &str = "team-a";
+/// A link whose runner keeps serving while the Hub could not run its latest push, and
+/// whose linked repository nobody watches.
+const FAILING_LINK: &str = "team-b";
+/// A link with no runner.
+const NO_RUNNER: &str = "team-c";
+const LINKED: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const TRACKED: &str = "1111111111111111111111111111111a";
+
+/// The Hub's answer for the runner of `link`.
+fn runner(link: &str) -> Value {
+    let mut runner = instance();
+    runner["sandbox"]["phase"] = json!("ready");
+    runner["sandbox"]["exitCode"] = Value::Null;
+    runner["sandbox"]["restartCount"] = json!(0);
+    runner["sandbox"]["conditions"] = json!([]);
+    runner["servingRevision"] = json!("a".repeat(64));
+    runner["warning"] = Value::Null;
+    runner["ungrantedProviders"] = json!([]);
+    runner["runner"] = json!({
+        "link": link,
+        "linkedRepository": LINKED,
+        "trackedBranch": {"id": TRACKED, "name": "main"},
+        "linkedRevision": "b".repeat(64)
+    });
+    // Fields the console does not report pass by.
+    runner["watch"] = json!({"watcher": "https://idp.example#owner", "failed": null});
+    runner["prepareFailure"] = Value::Null;
+    if link == FAILING_LINK {
+        runner["linkedWatch"] = Value::Null;
+        runner["runnerFailure"] = json!({
+            "linkedRepository": LINKED,
+            "revision": "c".repeat(64),
+            "message": "nobody watches the linked repository"
+        });
+    } else {
+        runner["linkedWatch"] = json!({"watcher": "https://idp.example#bob", "failed": null});
+        runner["runnerFailure"] = Value::Null;
+    }
+    runner
+}
+
 fn problem(status: StatusCode, title: &str, detail: &str) -> Response {
     problem_with(status, title, detail, json!({}))
 }
@@ -277,6 +320,10 @@ async fn hub_route(
         .iter()
         .find(|(name, _)| name == "repository")
         .map(|(_, value)| value.clone());
+    let link = query
+        .iter()
+        .find(|(name, _)| name == "link")
+        .map(|(_, value)| value.clone());
     let body: Option<Value> = (!body.is_empty()).then(|| serde_json::from_slice(&body).unwrap());
     requests.lock().unwrap().push(Seen {
         method: method.clone(),
@@ -319,6 +366,21 @@ async fn hub_route(
             "No instance",
             "no instance serves that branch of the repository",
         ),
+        (Method::GET, path, _) if path.ends_with("/instance") && link.is_some() => {
+            match link.as_deref() {
+                Some(NO_RUNNER) => problem(
+                    StatusCode::NOT_FOUND,
+                    "No instance",
+                    "no runner serves the link team-c of that branch; nobody watches the linked repository",
+                ),
+                Some(link) => (
+                    [(header::CACHE_CONTROL, "no-store")],
+                    axum::Json(runner(link)),
+                )
+                    .into_response(),
+                None => unreachable!(),
+            }
+        }
         (Method::GET, _, repository) => {
             let mut instance = instance();
             match repository {
@@ -576,6 +638,101 @@ async fn status_asks_the_hub_as_the_caller_and_waits_at_most_a_minute() {
         [
             ("repository", REPOSITORY),
             ("branch", BRANCH),
+            ("wait", "0")
+        ]
+    );
+    assert_as_the_caller(&requests);
+}
+
+#[tokio::test]
+async fn status_of_a_link_reports_its_runner() {
+    let (mesh, requests, _) = console(&[ConsolePermission::Use]).await;
+    let status = call(
+        &mesh,
+        "status",
+        json!({"repository": REPOSITORY, "branch": BRANCH, "link": LINK, "wait": 30}),
+    )
+    .await
+    .unwrap();
+    // The runner's program is the branch's: the applied revision is the branch's, and the
+    // linked repository's tracked branch is applied beside it.
+    assert_eq!(
+        status["runner"],
+        json!({
+            "link": LINK,
+            "linkedRepository": LINKED,
+            "trackedBranch": {"id": TRACKED, "name": "main"},
+            "linkedRevision": "b".repeat(64)
+        })
+    );
+    assert_eq!(status["appliedRevision"], "a".repeat(64));
+    assert_eq!(status["servingRevision"], status["appliedRevision"]);
+    assert_eq!(status["sandbox"]["phase"], "ready");
+    assert_eq!(
+        status["linkedWatch"],
+        json!({"watcher": "https://idp.example#bob", "failed": null})
+    );
+    assert!(status.get("runnerFailure").is_none(), "{status}");
+    for unreported in ["watch", "prepareFailure", "ungrantedProviders", "warning"] {
+        assert!(
+            status.get(unreported).is_none() || status[unreported].is_null(),
+            "{unreported}: {status}"
+        );
+    }
+
+    // A runner that keeps serving while its link could not run says why.
+    let failing = call(
+        &mesh,
+        "status",
+        json!({"repository": REPOSITORY, "branch": BRANCH, "link": FAILING_LINK}),
+    )
+    .await
+    .unwrap();
+    assert!(failing.get("linkedWatch").is_none(), "{failing}");
+    assert_eq!(
+        failing["runnerFailure"],
+        json!({
+            "linkedRepository": LINKED,
+            "revision": "c".repeat(64),
+            "message": "nobody watches the linked repository"
+        })
+    );
+
+    // A link without a runner is the Hub's refusal, which names why.
+    let missing = call(
+        &mesh,
+        "status",
+        json!({"repository": REPOSITORY, "branch": BRANCH, "link": NO_RUNNER}),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        missing,
+        format!(
+            "status of `{REPOSITORY}` branch `{BRANCH}` link `{NO_RUNNER}`: the Hub answered 404 \
+             Not Found: No instance: no runner serves the link team-c of that branch; nobody \
+             watches the linked repository"
+        )
+    );
+
+    // The link goes to the Hub as its own parameter; a branch's own status names none.
+    let requests = requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(
+        query(&requests[0]),
+        [
+            ("repository", REPOSITORY),
+            ("branch", BRANCH),
+            ("link", LINK),
+            ("wait", "30")
+        ]
+    );
+    assert_eq!(
+        query(&requests[1]),
+        [
+            ("repository", REPOSITORY),
+            ("branch", BRANCH),
+            ("link", FAILING_LINK),
             ("wait", "0")
         ]
     );

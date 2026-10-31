@@ -26,7 +26,10 @@ pub use sharing::{
     Groups, GroupsRequest, Member, MemberRole, Person, RepositoryAccess, RepositoryAccessRequest,
     SetGroupMemberRequest, ShareAccess, ShareRepositoryRequest, Subject,
 };
-pub use status::{Condition, Failure, InstanceStatus, Phase, SandboxStatus, Stage, StatusRequest};
+pub use status::{
+    Condition, Failure, InstanceStatus, Phase, RunnerFailure, RunnerStatus, SandboxStatus, Stage,
+    StatusRequest, TrackedBranch, WatchStatus,
+};
 
 /// The console as the provider of its tools.
 pub struct ConsoleProvider;

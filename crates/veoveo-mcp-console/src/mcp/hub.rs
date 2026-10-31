@@ -119,26 +119,26 @@ impl Hub {
         })
     }
 
-    /// `GET /factory/{profile}/instance?repository=&branch=&wait=`: the instance of
-    /// `branch` of `repository`, after waiting up to `wait`, at most [`MAX_WAIT`], for
-    /// its applied revision to serve or fail.
+    /// `GET /factory/{profile}/instance?repository=&branch=&link=&wait=`: the instance of
+    /// `branch` of `repository`, or the runner of its `link`, after waiting up to `wait`,
+    /// at most [`MAX_WAIT`], for its applied revision to serve or fail.
     pub async fn status(
         &self,
         client: &HubClient,
         profile: &HubProfileId,
         repository: &str,
         branch: &str,
+        link: Option<&str>,
         wait: Duration,
     ) -> Result<InstanceStatus, HubError> {
         let wait = wait.min(MAX_WAIT);
-        let url = self.route(
-            &["factory", profile.as_str(), "instance"],
-            &[
-                ("repository", repository),
-                ("branch", branch),
-                ("wait", &wait.as_secs().to_string()),
-            ],
-        );
+        let seconds = wait.as_secs().to_string();
+        let mut query = vec![("repository", repository), ("branch", branch)];
+        if let Some(link) = link {
+            query.push(("link", link));
+        }
+        query.push(("wait", &seconds));
+        let url = self.route(&["factory", profile.as_str(), "instance"], &query);
         let answer = self
             .send(client, Method::GET, url, None, wait + REQUEST_MARGIN)
             .await?;

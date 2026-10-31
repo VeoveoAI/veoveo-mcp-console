@@ -70,6 +70,7 @@ impl ConsoleMcp {
                 &profile,
                 &request.repository,
                 &request.branch,
+                None,
                 Duration::ZERO,
             )
             .await
@@ -117,17 +118,25 @@ impl ConsoleMcp {
                 &profile,
                 &request.repository,
                 &request.branch,
+                request.link.as_deref(),
                 wait,
             )
             .await
-            .map_err(|error| {
-                refused(
+            .map_err(|error| match &request.link {
+                None => refused(
                     format_args!(
                         "status of `{}` branch `{}`",
                         request.repository, request.branch
                     ),
                     error,
-                )
+                ),
+                Some(link) => refused(
+                    format_args!(
+                        "status of `{}` branch `{}` link `{link}`",
+                        request.repository, request.branch
+                    ),
+                    error,
+                ),
             })
     }
 
@@ -331,9 +340,13 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
             "Why a branch of a repository serves or does not: the revision the Hub applied \
              and the one serving, the sandbox's phase, exit code, restart count and \
              conditions, the Hub's last failure, any warning, and the providers the branch \
-             requested that its repository is not granted. With `wait`, answers as \
-             soon as the applied revision serves or fails, after at most 60 seconds. After \
-             a push, call it with `wait`; on failure, read `logs`.",
+             requested that its repository is not granted. With `link`, the runner of that \
+             link of the branch instead: also its linked repository, the tracked branch's \
+             ID and name, the linked revision applied beside the branch's, who the Hub \
+             watches the linked repository as, and why the link could not run; it is \
+             ready when its serving revision names the applied one. With `wait`, answers \
+             as soon as the applied revision serves or fails, after at most 60 seconds. \
+             After a push, call it with `wait`; on failure, read `logs`.",
             policy(),
             |domain, request, context| async move { domain.status(request, context).await },
         )

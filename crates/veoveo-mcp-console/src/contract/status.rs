@@ -1,6 +1,7 @@
 //! `status`: why a branch of a repository serves or does not, as the Hub reports its
-//! instance. The types follow the Hub's answer to `GET /factory/{profile}/instance`;
-//! fields the Hub adds later are not reported until they are added here.
+//! instance, or the runner of one of its links. The types follow the Hub's answer to
+//! `GET /factory/{profile}/instance`; fields the Hub adds later are not reported until
+//! they are added here.
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,11 @@ pub struct StatusRequest {
     pub repository: String,
     /// The branch whose instance to report.
     pub branch: String,
+    /// A link at the top level of the branch, such as `team-a`, whose runner to report
+    /// instead: the instance that serves the linked repository's tracked branch with the
+    /// branch's program. Its status follows the caller's grant on the linked repository.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
     /// Seconds to wait for the applied revision to serve or fail before answering. At
     /// most 60 seconds are waited; absent or 0 answers at once.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -37,10 +43,12 @@ pub struct InstanceStatus {
     pub sandbox_id: Option<String>,
     /// The sandbox as OpenShell reports it; null while OpenShell has none.
     pub sandbox: Option<SandboxStatus>,
-    /// The revision the Hub last applied to the sandbox.
+    /// The revision the Hub last applied to the sandbox; a runner's is its branch's, the
+    /// parent's.
     pub applied_revision: Option<String>,
     /// The applied revision while it serves: the sandbox is ready and the server
-    /// registered or resumed after the Hub last restarted or created it.
+    /// registered or resumed after the Hub last restarted or created it. A runner is
+    /// ready when it names the applied revision.
     pub serving_revision: Option<String>,
     /// Why the Hub's last step for the instance failed, until a later one succeeds.
     pub failed: Option<Failure>,
@@ -50,6 +58,65 @@ pub struct InstanceStatus {
     /// installation does not grant its repository, so the sandbox runs without them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ungranted_providers: Vec<String>,
+    /// For a runner: its link, the linked repository, the branch of it the link tracks
+    /// and the revision of that branch the Hub last applied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner: Option<RunnerStatus>,
+    /// For a runner, who the Hub watches its linked repository as, and why the last
+    /// subscription as them failed; none while nobody watches it, when the runner keeps
+    /// serving what it last applied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_watch: Option<WatchStatus>,
+    /// For a runner, why the Hub could not run its link at the revision it names, such as
+    /// a refused network rule of the linked repository, until a push runs it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner_failure: Option<RunnerFailure>,
+}
+
+/// What a runner serves beside its branch's program.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunnerStatus {
+    /// The link, by its name at the top level of the branch.
+    pub link: String,
+    /// The linked Lore repository.
+    pub linked_repository: String,
+    /// The branch of the linked repository the link tracks, where people push to change
+    /// what the runner serves.
+    pub tracked_branch: TrackedBranch,
+    /// The revision of the tracked branch the Hub last applied.
+    pub linked_revision: Option<String>,
+}
+
+/// A branch of a linked repository, by its Lore ID and its name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackedBranch {
+    /// The branch's Lore ID.
+    pub id: String,
+    /// Its name, as the Hub last read it.
+    pub name: String,
+}
+
+/// Who the Hub watches a repository as, and why the last subscription as them failed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchStatus {
+    /// The watcher's principal.
+    pub watcher: String,
+    /// Why the last subscription as the watcher failed; none while it holds.
+    pub failed: Option<String>,
+}
+
+/// Why the Hub could not run a link of a branch.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunnerFailure {
+    /// The linked repository the runner would serve.
+    pub linked_repository: String,
+    /// The revision the Hub could not run.
+    pub revision: String,
+    pub message: String,
 }
 
 /// The sandbox's lifecycle as OpenShell reports it. OpenShell restarts the sandbox's
