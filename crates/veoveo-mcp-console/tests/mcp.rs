@@ -186,9 +186,10 @@ fn access(repository: &str) -> Value {
     json!({
         "repository": repository,
         "access": [
-            {"person": {"email": SELF, "name": "Me"}, "access": "owner", "actions": ["owner"]},
-            {"person": {"email": null, "name": null}, "access": "member", "actions": []},
-            {"group": {"name": "flight"}, "access": "member", "actions": []}
+            {"person": {"email": SELF, "name": "Me"}, "access": "owner", "actions": ["write", "owner"]},
+            {"person": {"email": "ana@example.com", "name": "Ana"}, "access": "reader", "actions": []},
+            {"person": {"email": null, "name": null}, "access": "member", "actions": ["write", "push-protected"]},
+            {"group": {"name": "flight"}, "access": "member", "actions": ["write"]}
         ]
     })
 }
@@ -732,6 +733,25 @@ async fn sharing_reads_and_sets_a_repositorys_access_through_the_hub() {
     .await
     .unwrap();
     assert_eq!(shared, access(CREATED));
+    let read_only = call(
+        &mesh,
+        "share_repository",
+        json!({"repository": CREATED, "person": "ana@example.com", "access": "reader"}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(read_only, access(CREATED));
+    let refused = call(
+        &mesh,
+        "share_repository",
+        json!({"repository": CREATED, "person": "ana@example.com", "access": "admin"}),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        refused, "invalid typed tool arguments",
+        "no other level is offered"
+    );
     call(
         &mesh,
         "share_repository",
@@ -757,7 +777,7 @@ async fn sharing_reads_and_sets_a_repositorys_access_through_the_hub() {
     );
 
     let requests = requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 5, "an unknown access reaches no Hub route");
     for seen in &requests {
         assert_eq!(seen.path, path);
         assert!(seen.query.is_empty());
@@ -771,10 +791,14 @@ async fn sharing_reads_and_sets_a_repositorys_access_through_the_hub() {
     );
     assert_eq!(
         requests[2].body,
-        Some(json!({"group": "flight", "access": "none"}))
+        Some(json!({"person": "ana@example.com", "access": "reader"}))
     );
     assert_eq!(
         requests[3].body,
+        Some(json!({"group": "flight", "access": "none"}))
+    );
+    assert_eq!(
+        requests[4].body,
         Some(json!({"person": STRANGER, "access": "owner"}))
     );
     assert_as_the_caller(&requests);

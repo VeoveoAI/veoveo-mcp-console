@@ -35,9 +35,11 @@ pub struct ShareRepositoryRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ShareAccess {
-    /// Clone, read and push.
+    /// Clone and pull, without pushing.
+    Reader,
+    /// Clone, pull and push to unprotected branches.
     Member,
-    /// A member who also shares the repository.
+    /// A member who also shares the repository, protects its branches and deletes it.
     Owner,
     /// Remove this person's or group's access.
     None,
@@ -59,7 +61,8 @@ pub struct AccessEntry {
     #[serde(flatten)]
     pub subject: Subject,
     pub access: AccessLevel,
-    /// Lore's named privileges the assignment holds, such as `owner`.
+    /// Lore's actions the assignment holds, such as `write` and `owner`; none for a
+    /// reader.
     pub actions: Vec<String>,
 }
 
@@ -90,7 +93,11 @@ pub struct GroupName {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AccessLevel {
+    /// Clone and pull, without pushing.
+    Reader,
+    /// Clone, pull and push to unprotected branches.
     Member,
+    /// A member who also shares the repository, protects its branches and deletes it.
     Owner,
 }
 

@@ -54,8 +54,8 @@ The console answers these questions for an agent, as its user:
 | `select(server, branch \| null)` | `PUT /selection/{profile}/{server}` with `{"branch": …}`; `DELETE` when the branch is null | `Selection`: the server and its selected branch |
 | `watch(repository)` | `PUT /factory/{profile}/watch?repository=` | `Watching`: the repository |
 | `create_repository(name, id?)` | `POST /lore/{profile}/repositories` with `{"name": …}` and the optional `"id"` | `Repository`: its ID, name and clone `remote`, `<Lore remote>/<id>` |
-| `repository_access(repository)` | `GET /lore/{profile}/repositories/{id}/access` | `RepositoryAccess`: the repository and each person, by email and name, and group, by name, that may reach it, with its level, `member` or `owner` |
-| `share_repository(repository, person \| group, access)` | `PUT /lore/{profile}/repositories/{id}/access` with `{"person": …}` or `{"group": …}` and `{"access": …}`, one of `member`, `owner` or `none` | `RepositoryAccess` after the change |
+| `repository_access(repository)` | `GET /lore/{profile}/repositories/{id}/access` | `RepositoryAccess`: the repository and each person, by email and name, and group, by name, that may reach it, with its level, `reader`, `member` or `owner`, and the Lore actions it holds |
+| `share_repository(repository, person \| group, access)` | `PUT /lore/{profile}/repositories/{id}/access` with `{"person": …}` or `{"group": …}` and `{"access": …}`, one of `reader`, `member`, `owner` or `none` | `RepositoryAccess` after the change |
 | `groups()` | `GET /lore/{profile}/groups` | `Groups`: each group the caller belongs to, with its ID, its members by email and name and their roles |
 | `create_group(name)` | `POST /lore/{profile}/groups` with `{"name": …}` | `Group`: its ID and name, with the caller as its owner |
 | `set_group_member(group, person, role)` | `PUT /lore/{profile}/groups/{name}/members` with `{"person": …, "role": …}`, one of `member`, `owner` or `none` | `Group` after the change |
@@ -93,7 +93,12 @@ created `id`.
 `share_repository` and `set_group_member` name a person by the email they sign in with
 and a group by its name; one argument of `person` and `group` is required. Only an owner
 shares, and the Hub refuses a change that would leave the caller without `owner`, so the
-error says so. A person who has never signed in cannot be named yet. Access through a
+error says so. The levels are the Lore actions the Hub puts in a repository token: a
+`reader` holds none, so clones and pulls and pushes nothing; a `member` holds `write`,
+which pushes to unprotected branches; an `owner` holds `write` and `owner`. A protected
+branch takes `push-protected`, which only an administrator assigns, and which
+`repository_access` lists among an entry's actions. A person who has never signed in
+cannot be named yet. Access through a
 group follows its members: adding someone to a group gives them every repository shared
 with it, within the Lore token lifetime. A group is the same group to every server: a
 server that grants to groups, such as Artifact, names it by the ID `groups` answers, and a

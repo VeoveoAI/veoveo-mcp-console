@@ -376,7 +376,9 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
         )
         .tool::<RepositoryAccessRequest, _, _>(
             "Who may reach a repository: each person, by email and name, and each group, \
-             with `member` (clone, read and push) or `owner` (a member who also shares it).",
+             with `reader` (clone and pull, no push), `member` (also push to unprotected \
+             branches) or `owner` (a member who also shares it, protects its branches and \
+             deletes it), and the Lore actions each holds.",
             policy(),
             |domain, request, context| async move {
                 domain.repository_access(request, context).await
@@ -384,9 +386,10 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
         )
         .tool::<ShareRepositoryRequest, _, _>(
             "Share a repository you own with a person, by the email they sign in with, or \
-             with a group, by its name: `member` lets them clone, read and push, `owner` \
-             also lets them share it, and `none` removes their access. Their Computers \
-             reach it within five minutes. Answers who may reach it now.",
+             with a group, by its name: `reader` lets them clone and pull but not push, \
+             `member` also lets them push to unprotected branches, `owner` also lets them \
+             share it, protect its branches and delete it, and `none` removes their access. \
+             Their Computers reach it within five minutes. Answers who may reach it now.",
             policy(),
             |domain, request, context| async move {
                 domain.share_repository(request, context).await
