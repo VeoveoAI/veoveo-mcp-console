@@ -1381,3 +1381,47 @@ async fn the_computer_tool_names_the_current_version_and_follows_it() {
     assert!(!third.contains(".;") && !third.contains(".."), "{third}");
     assert!(!second.contains(RUNNING), "{second}");
 }
+
+#[tokio::test]
+async fn the_skills_are_served_to_a_caller_who_may_use_the_console() {
+    let (mesh, _, _) = console(&[ConsolePermission::Use]).await;
+    let listed = mesh.request(SLUG, "skills/list", json!({})).await;
+    let skills = listed["result"]["skills"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{listed}"));
+    assert_eq!(
+        skills
+            .iter()
+            .map(|skill| skill["frontmatter"]["name"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        [
+            "read-instance-logs",
+            "serve-a-branch",
+            "share-repositories",
+            "update-the-computer"
+        ]
+    );
+    // Each file reads with the size its manifest names.
+    for file in skills
+        .iter()
+        .flat_map(|skill| skill["resources"].as_array().unwrap())
+    {
+        let read = mesh
+            .request(SLUG, "resources/read", json!({"uri": file["uri"]}))
+            .await;
+        let text = read["result"]["contents"][0]["text"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{read}"));
+        assert_eq!(text.len() as u64, file["size"].as_u64().unwrap());
+    }
+    // Without the console's permission no skill file reads.
+    let (refused, _, _) = console(&[]).await;
+    let read = refused
+        .request(
+            SLUG,
+            "resources/read",
+            json!({"uri": "skill://console/serve-a-branch/SKILL.md"}),
+        )
+        .await;
+    assert!(read["error"].is_object(), "{read}");
+}

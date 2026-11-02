@@ -41,6 +41,7 @@ server = [
     "tokio/signal",
     "dep:tracing",
     "dep:url",
+    "dep:veoveo-skills",
     "dep:veoveo-store",
 ]
 
@@ -63,7 +64,12 @@ thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["sync", "time", "net"] }
 tracing = { workspace = true, optional = true }
 url = { workspace = true, optional = true }
+veoveo-skills = { workspace = true, optional = true }
 veoveo-store = { workspace = true, optional = true }
+
+[build-dependencies]
+# Embeds the skills under skills/ at build time.
+veoveo-skills = { workspace = true, features = ["build"] }
 
 [dev-dependencies]
 axum.workspace = true

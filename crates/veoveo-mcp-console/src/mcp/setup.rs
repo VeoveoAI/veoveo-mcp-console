@@ -1,10 +1,11 @@
-//! The server's checked contract: slug, scheme, scope and documents.
+//! The server's checked contract: slug, scheme, scope, documents and skills.
 use std::sync::LazyLock;
 
 use rmcp::model::{ServerCapabilities, ServerConfig};
 use veoveo_hub_sdk::{
     docs::ServerDocs,
     server_contract::{McpServerContract, McpServerSetup},
+    skills::ServerSkills,
 };
 use veoveo_types::ResourceScheme;
 
@@ -14,6 +15,10 @@ use crate::contract::{ConsoleProvider, ConsoleScope};
 /// `console://docs/{doc_id}`, `console://contract` and the admin document routes.
 pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_hub_sdk::server_docs!(crate::SLUG));
+
+/// The skills under `skills/`, embedded at build time and served at `skill://console/…`.
+pub(crate) static SERVER_SKILLS: LazyLock<ServerSkills> =
+    LazyLock::new(|| veoveo_hub_sdk::server_skills!(crate::SLUG));
 
 pub struct ConsoleContract;
 
@@ -33,6 +38,9 @@ impl McpServerContract for ConsoleContract {
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS
+    }
+    fn skills() -> &'static ServerSkills {
+        &SERVER_SKILLS
     }
     fn server_config() -> ServerConfig {
         server_config()
@@ -55,18 +63,28 @@ fn server_config() -> ServerConfig {
     let mut info = ServerConfig::default();
     info.capabilities = capabilities;
     info.server_info = rmcp::model::Implementation::new(crate::SLUG, env!("CARGO_PKG_VERSION"));
-    info.instructions = Some(
-        "The Hub's activities for your factory instances, as you: why a branch serves or \
-         not, its output and network denials, which branch serves you each server, \
-         which repositories the Hub watches for you, Lore repositories you create \
-         and own, and your Computer's version and restart."
-            .to_owned(),
-    );
+    info.instructions = Some(INSTRUCTIONS.to_owned());
     info
 }
 
+/// What the server is and which skills say how to use it.
+const INSTRUCTIONS: &str = "The Hub's activities as you: your factory instances, the \
+     branch that serves you each server, your repositories and groups, and your Computer. \
+     Its skills say how: skill://console/serve-a-branch/SKILL.md, \
+     skill://console/read-instance-logs/SKILL.md, skill://console/share-repositories/SKILL.md \
+     and skill://console/update-the-computer/SKILL.md.";
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_instructions_name_every_skill_the_server_serves() {
+        let skills = &*super::SERVER_SKILLS;
+        assert_eq!(skills.skills().len(), 4);
+        for skill in skills.skills() {
+            assert!(super::INSTRUCTIONS.contains(&skill.uri), "{}", skill.uri);
+        }
+    }
+
     #[test]
     fn the_setup_lists_only_the_hosts_documents() {
         let setup = &*super::SERVER_SETUP;
