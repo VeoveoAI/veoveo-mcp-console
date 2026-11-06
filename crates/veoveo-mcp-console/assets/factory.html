@@ -378,7 +378,7 @@ function renderServers() {
     const quiet = r.gaps.filter((g) => g.state === "no_run");
     const collapsed = isCollapsed(r);
     const owner = whole ? `<td class="owner-td">${esc(r.owners.map(firstName).join(", ") || "nobody")}</td>` : "";
-    const rowHead = `<th scope="row" class="row"><button class="row-button" data-click="${onClick(() => openRepo(r))}"><span class="slug">${esc(r.name)}</span><span class="origin">Lore ${esc(r.title)}</span></button>`
+    const rowHead = `<th scope="row" class="row"><button class="row-button" data-click="${onClick(() => openRepo(r))}"><span class="slug">${esc(r.name)}</span><span class="origin">${esc(r.title)}</span></button>`
       + (links.length ? `<button class="row-extra" data-click="${onClick(() => { state.toggled.has(r.id) ? state.toggled.delete(r.id) : state.toggled.add(r.id); renderServers(); })}"><span class="link-count">${collapsed ? "▸" : "▾"} ${plural(links.length, "link", "links")}</span>${collapsed && links.some((l) => brokenLink(r, l)) ? ` <span class="tag-warn">${links.filter((l) => brokenLink(r, l)).length} with a problem</span>` : ""}</button>` : "")
       + (quiet.length ? `<button class="row-extra" data-click="${onClick(() => openRepo(r))}">+${plural(quiet.length, "branch", "branches")}, no run</button>` : "")
       + (r.watchFailed ? `<span class="row-extra state-danger">Not following pushes</span>` : r.reached && !r.linked && r.list.length && !r.watcher ? `<span class="row-extra state-danger">Nobody watches</span>` : "")
@@ -405,7 +405,7 @@ function renderServers() {
     for (const link of links) {
       if (collapsed) break;
       const sample = r.list.find((i) => i.link === link) || r.linkGaps.find((g) => g.link === link);
-      const linkHead = `<th scope="row" class="row"><span class="link-name">${esc(link)}</span><span class="origin">${sample.linkedRepository ? `link to Lore ${esc(sample.linkedRepository)}` : "link"}</span></th>`;
+      const linkHead = `<th scope="row" class="row"><span class="link-name">${esc(link)}</span><span class="origin">${esc(sample.linkedRepository || "")}</span></th>`;
       html += `<tr class="link-row">${linkHead}${whole ? `<td class="owner-td">${esc((sample.linkedOwners || []).map(firstName).join(", "))}</td>` : ""}` + cols.map((b) => {
         const i = r.list.find((x) => x.link === link && x.branch === b);
         const g = r.linkGaps.find((x) => x.link === link && x.branch === b);
@@ -427,7 +427,7 @@ function renderServers() {
   const el = element("servers");
   const more = onClick(() => { state.moreBranches = true; renderServers(); });
   el.innerHTML = (model.rows.length
-    ? `<div class="grid-wrap"><table class="grid"><thead><tr><th class="corner" scope="col"><span class="muted small">Server</span></th>${whole ? `<th class="owner-head" scope="col"><span class="muted small">Owner</span></th>` : ""}${head}</tr></thead><tbody>${body}</tbody></table></div>`
+    ? `<div class="grid-wrap"><table class="grid"><thead><tr><th class="corner" scope="col"><span class="muted small">Server<br>repository</span></th>${whole ? `<th class="owner-head" scope="col"><span class="muted small">Owner</span></th>` : ""}${head}</tr></thead><tbody>${body}</tbody></table></div>`
     : `<p class="muted">Nothing here is built from a repository you hold a grant on.</p>`)
     + (hidden ? `<div style="margin-top:8px"><button class="btn" data-click="${more}">Show ${hidden} older branches</button></div>` : "")
     + (notes ? `<div class="trays">${notes}</div>` : "");
@@ -450,7 +450,7 @@ function renderLinks() {
       if (i.hidden) return `<tr data-click="${onClick(() => openInstance(i))}"><td>${code(i.link)}</td><td class="muted" colspan="${whole ? 5 : 4}">no grant</td><td>${shownState}</td></tr>`;
       return `<tr data-click="${onClick(() => openInstance(i))}"><td>${code(i.link)}</td><td>${esc(i.linkedRepository)}<span class="small muted">at ${code(short(i.linkedRevision))}</span></td><td title="${esc(i.trackedBranch)}">${code(shortBranch(i.trackedBranch))}</td><td>${code(i.database)}</td><td>${esc(firstName(i.linkedWatcher) || "nobody")}</td>${whole ? `<td>${esc(i.linkedReach.map(firstName).join(", "))}</td>` : ""}<td>${shownState}</td></tr>`;
     }).join("") + broken.map((g) => `<tr data-click="${onClick(() => openLinkGap(r, g))}"><td>${code(g.link)}</td><td>${esc(g.linkedRepository)}</td><td class="muted">—</td><td class="muted">—</td><td></td>${whole ? `<td></td>` : ""}<td><span class="state-danger">No runner</span></td></tr>`).join("");
-    return `<div class="link-group"><h3>${esc(r.name)} ${code(b)}${program ? `<span class="chip" title="The program every link here runs: Lore ${esc(r.title)}">program ${code(short(program))}</span>` : ""}</h3>`
+    return `<div class="link-group"><h3>${esc(r.name)} ${code(b)}${program ? `<span class="chip" title="The program every link here runs: ${esc(r.title)}">program ${code(short(program))}</span>` : ""}</h3>`
       + `<table class="plain"><thead><tr><th>Link</th><th>Serves</th><th>Push to</th><th>Data environment</th><th>Watcher</th>${whole ? "<th>Who can reach it</th>" : ""}<th>State</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }).join("");
   element("links").innerHTML = html || `<p class="muted">No links.</p>`;
@@ -633,7 +633,7 @@ function openLinkGap(r, g) {
     panelHead(`${esc(r.name)} / ${esc(g.link)} on ${code(g.branch)}`)
     + ""
     + `<p class="problem danger">${esc(g.message)}</p>`
-    + `<h3>Link</h3><dl><dt>Serves</dt><dd>Lore ${esc(g.linkedRepository)}</dd><dt>Program</dt><dd>Lore ${esc(r.title)}, ${code(g.branch)} at ${code(short(g.revision))}</dd>${r.server ? `<dt>Called as</dt><dd>${code(`${r.server}__${g.link}__{tool}`)}</dd>` : ""}</dl>`
+    + `<h3>Link</h3><dl><dt>Serves</dt><dd>${esc(g.linkedRepository)}</dd><dt>Program</dt><dd>${esc(r.title)} ${code(short(g.revision))}</dd>${r.server ? `<dt>Called as</dt><dd>${code(`${r.server}__${g.link}__{tool}`)}</dd>` : ""}</dl>`
     + `<div class="actions"><button class="btn primary" data-click="${onClick(() => act("watch", { repository: g.linkedRepositoryId }))}">Watch ${esc(g.linkedRepository)}</button></div>`);
 }
 
@@ -647,7 +647,7 @@ function openRepo(r) {
   const canWatch = r.reached && (!r.watcher || r.watchFailed);
   showPanel(`repo:${r.id}`, rowAgain(r, openRepo),
     panelHead(esc(r.name))
-    + `<p class="panel-status">Lore ${esc(r.title)}</p>`
+    + `<p class="panel-status">${esc(r.title)}</p>`
     + (r.watchFailed ? `<p class="problem danger">${esc(r.watchFailed)}</p>` : "")
     + (r.branchesError ? `<p class="problem">${esc(r.branchesError)}</p>` : "")
     + (r.reached ? `<h3>People</h3><dl><dt>Owners</dt><dd>${esc(r.owners.join(", ") || "none")}</dd><dt>Watcher</dt><dd>${esc(r.watcher || "Nobody, so pushes are not built")}</dd></dl>` : "")
