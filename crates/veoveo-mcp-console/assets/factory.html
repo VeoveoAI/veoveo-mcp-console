@@ -46,7 +46,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 h1 { font-size: 16px; margin: 0; font-weight: 600; }
 .switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.switch button { padding: 4px 12px; font-size: 13px; color: var(--muted); }
+.switch button { padding: 5px 12px; font-size: 13px; color: var(--muted); }
 .switch button + button { border-left: 1px solid var(--line); }
 .switch button[aria-pressed="true"] { background: var(--soft); color: var(--fg); font-weight: 600; }
 .refresh { font-size: 12px; color: var(--muted); }
@@ -59,15 +59,13 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--accent); }
 .chip.danger b { color: var(--danger); }
 .chip.warn b { color: var(--warn); }
 .chip code { font-size: 12px; }
-.you-chip { background: color-mix(in srgb, var(--accent) 11%, var(--bg)); box-shadow: inset 3px 0 0 var(--accent); border-radius: 6px; padding: 3px 10px 3px 12px; font-size: 13px; display: inline-flex; gap: 6px; align-items: baseline; white-space: nowrap; }
-.you-chip code { font-size: 13px; font-weight: 600; }
-.you-chip.failing { background: color-mix(in srgb, var(--danger) 11%, var(--bg)); box-shadow: inset 3px 0 0 var(--danger); }
+.chip.chosen { background: var(--fg); border-color: var(--fg); color: var(--bg); font-weight: 600; }
+.chip.chosen code { font-weight: 600; }
+.chip.chosen.failing { background: var(--danger); border-color: var(--danger); }
 .error { color: var(--danger); margin: 0; }
+.tag-danger { color: var(--danger); font-weight: 600; }
+.tag-warn { color: var(--warn); font-weight: 600; }
 .count { color: var(--muted); font-weight: 400; margin-left: 3px; font-size: 12px; }
-
-.tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--line); }
-.tabs button { padding: 6px 1px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
-.tabs button[aria-selected="true"] { color: var(--fg); font-weight: 600; border-color: var(--fg); }
 
 .grid-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; max-height: calc(100vh - 150px); width: fit-content; max-width: 100%; }
 table.grid { border-collapse: separate; border-spacing: 0; width: max-content; }
@@ -162,11 +160,13 @@ table.plain { border-collapse: collapse; width: 100%; font-size: 13.5px; }
   <p class="error" id="error" hidden></p>
   <div class="chips" id="you" hidden></div>
   <div class="chips" id="attention"></div>
-  <div class="tabs" role="tablist" id="tabs" hidden>
-    <button role="tab" data-tab="servers" data-label="Servers" aria-selected="true">Servers</button>
-    <button role="tab" data-tab="links" data-label="Links" aria-selected="false">Links</button>
-    <button role="tab" data-tab="data" data-label="Data" aria-selected="false">Data</button>
-    <button role="tab" data-tab="people" data-label="People" aria-selected="false" id="tab-people">People</button>
+  <div class="top" id="tabs" hidden>
+    <div class="switch" role="group" aria-label="View">
+      <button data-tab="servers" data-label="Servers" aria-pressed="true">Servers</button>
+      <button data-tab="links" data-label="Links" aria-pressed="false">Links</button>
+      <button data-tab="data" data-label="Data" aria-pressed="false">Data</button>
+      <button data-tab="people" data-label="People" aria-pressed="false" id="tab-people">People</button>
+    </div>
   </div>
   <section id="servers"></section>
   <section id="links" hidden></section>
@@ -275,10 +275,10 @@ function renderYou() {
   const base = model.base;
   const away = model.answer.routes.filter((r) => r.selected && r.branch !== base);
   const gone = model.answer.routes.filter((r) => r.unavailable);
-  const chips = [`<span class="you-chip"><code>${esc(base)}</code></span>`]
-    .concat(away.slice(0, 5).map((r) => `<span class="you-chip">${esc(r.server)} <code>${esc(r.branch)}</code></span>`));
+  const chips = [`<span class="chip chosen"><code>${esc(base)}</code></span>`]
+    .concat(away.slice(0, 5).map((r) => `<span class="chip chosen">${esc(r.server)} <code>${esc(r.branch)}</code></span>`));
   if (away.length > 5) chips.push(`<span class="muted small">+${away.length - 5}</span>`);
-  for (const r of gone) chips.push(`<span class="you-chip failing" title="${esc(r.unavailable)}">${esc(r.server)} <code>${esc(r.branch || "")}</code></span>`);
+  for (const r of gone) chips.push(`<span class="chip chosen failing" title="${esc(r.unavailable)}">${esc(r.server)} <code>${esc(r.branch || "")}</code></span>`);
   element("you").innerHTML = chips.join("");
 }
 
@@ -381,7 +381,7 @@ function renderServers() {
     const collapsed = isCollapsed(r);
     const owner = whole ? `<td class="owner-td">${esc(r.owners.map(firstName).join(", ") || "nobody")}</td>` : "";
     const rowHead = `<th scope="row" class="row"><button class="row-button" data-click="${onClick(() => openRepo(r))}"><span class="slug">${esc(r.name)}</span><span class="origin">Lore ${esc(r.title)}</span></button>`
-      + (links.length ? `<button class="row-extra" data-click="${onClick(() => { state.toggled.has(r.id) ? state.toggled.delete(r.id) : state.toggled.add(r.id); renderServers(); })}"><span class="link-count">${collapsed ? "▸" : "▾"} ${plural(links.length, "link", "links")}</span></button>` : "")
+      + (links.length ? `<button class="row-extra" data-click="${onClick(() => { state.toggled.has(r.id) ? state.toggled.delete(r.id) : state.toggled.add(r.id); renderServers(); })}"><span class="link-count">${collapsed ? "▸" : "▾"} ${plural(links.length, "link", "links")}</span>${collapsed && links.some((l) => brokenLink(r, l)) ? ` <span class="tag-warn">${links.filter((l) => brokenLink(r, l)).length} with a problem</span>` : ""}</button>` : "")
       + (quiet.length ? `<button class="row-extra" data-click="${onClick(() => openRepo(r))}">+${plural(quiet.length, "branch", "branches")}, no run</button>` : "")
       + (r.watchFailed ? `<span class="row-extra state-danger">Not following pushes</span>` : r.reached && !r.linked && r.list.length && !r.watcher ? `<span class="row-extra state-danger">Nobody watches</span>` : "")
       + `</th>${owner}`;
@@ -405,7 +405,7 @@ function renderServers() {
     }).join("");
     let html = `<tr>${rowHead}${cells}</tr>`;
     for (const link of links) {
-      if (collapsed && !brokenLink(r, link)) continue;
+      if (collapsed) break;
       const sample = r.list.find((i) => i.link === link) || r.linkGaps.find((g) => g.link === link);
       const linkHead = `<th scope="row" class="row"><span class="link-name">${esc(link)}</span><span class="origin">${sample.linkedRepository ? `link to Lore ${esc(sample.linkedRepository)}` : "link"}</span></th>`;
       html += `<tr class="link-row">${linkHead}${whole ? `<td class="owner-td">${esc((sample.linkedOwners || []).map(firstName).join(", "))}</td>` : ""}` + cols.map((b) => {
@@ -471,7 +471,7 @@ function renderData() {
   const rows = [...byDb.entries()].sort((a, b) => (b[0] === installation) - (a[0] === installation) || a[0].localeCompare(b[0])).map(([db, list]) => {
     const branch = list[0].branch + (list[0].link ? " / " + list[0].link : "");
     const youThere = list.filter(isYou).map(nameOf);
-    const you = youThere.length ? [`<span class="you-chip">you</span>`] : [];
+    const you = youThere.length ? [`<span class="chip chosen">you</span>`] : [];
     let using;
     if (state.scope === "own") using = you;
     else if (list[0].branch === model.base) using = [`<span class="muted">${list[0].link ? `grant on ${esc(list[0].linkedRepository)}` : "everyone else"}</span>`];
@@ -660,7 +660,7 @@ function openRepo(r) {
 
 function setTab(tab) {
   state.tab = tab;
-  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tab === tab)));
   for (const t of ["servers", "links", "data", "people"]) element(t).hidden = t !== tab;
 }
 function render() {
@@ -673,7 +673,7 @@ function render() {
   element("tabs").hidden = false;
   element("as-of").textContent = when(model.answer.readAt);
   const tabCounts = { servers: model.rows.length, links: model.rows.reduce((n, r) => n + linkNames(r).length, 0), data: model.answer.databases.length, people: model.answer.people.length };
-  document.querySelectorAll(".tabs button").forEach((b) => { b.innerHTML = `${esc(b.dataset.label)}<span class="count">${tabCounts[b.dataset.tab]}</span>`; });
+  document.querySelectorAll("#tabs button").forEach((b) => { b.innerHTML = `${esc(b.dataset.label)}<span class="count">${tabCounts[b.dataset.tab]}</span>`; });
   renderYou(); renderAttention(); renderServers(); renderLinks(); renderData(); renderPeople();
 }
 function showError(error) {
@@ -700,7 +700,7 @@ const read = (scope) => load(scope).catch((error) => {
 element("scope-own").addEventListener("click", () => read("own"));
 element("scope-tenant").addEventListener("click", () => read("tenant"));
 element("refresh").addEventListener("click", () => read(state.scope));
-document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
 (async () => {
   try {
     await veoveoApp.connect("factory");

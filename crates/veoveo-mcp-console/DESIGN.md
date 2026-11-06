@@ -101,11 +101,12 @@ across the top. A cell is an instance and shows the revision it serves, a column
 data environment, a row names the server and its Lore repository, and what the person calls
 is highlighted, so a person on one branch sees a straight column and one who selected another
 for a server sees it break. A healthy cell shows only its revision and date; a word
-appears when something is wrong. The page shows and does not narrate: a chip in the grid's
-highlight says which branch the person is on, one chip per kind of problem says what is wrong,
-worst first, the counts are on the tabs, and the sentences behind a chip are a click away. A
-link has its own row under its server, and a tab of its own: one program, then for each link
-what it serves, where to push, its database, watcher and who can reach it. Details open in one
+appears when something is wrong. The page shows and does not narrate: a filled chip says which
+branch the person is on, one chip per kind of problem says what is wrong, worst first, the counts
+are on the switch between views, and the sentences behind a chip are a click away. A link has its
+own row under its server, which collapses with the rest of them to a count and how many have a
+problem, and a view of its own: one program, then for each link what it serves, where to push,
+its database, watcher and who can reach it. Details open in one
 panel, with `Use this branch`, the instance's logs and the branch's push targets.
 
 It reads when the person asks, never on a timer. Whole factory asks the Hub for `tenant`, and
