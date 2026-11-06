@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use veoveo_hub_sdk::{HubProfileId, client::CallError, client::HubClient};
 
 use crate::contract::{
-    ComputerStatus, ComputerVersion, Group, Groups, InstanceStatus, MemberRole, Repository,
-    RepositoryAccess, ShareAccess,
+    ComputerStatus, ComputerVersion, FactoryScope, FactoryState, Group, Groups, InstanceStatus,
+    MemberRole, Repository, RepositoryAccess, ShareAccess,
 };
 
 /// The longest `status` waits for an instance to settle, as the Hub bounds it.
@@ -23,6 +23,9 @@ const REQUEST_MARGIN: Duration = Duration::from_secs(15);
 /// seconds to connect and 30 to answer, then publishes the registration. Giving up
 /// earlier would leave the agent without the created `id`.
 const CREATE_TIMEOUT: Duration = Duration::from_secs(120);
+/// How long reading the factory may take: the Hub reads each watched repository's branches
+/// from Lore for it.
+const FACTORY_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// The Hub at the origin of its issuer.
 #[derive(Clone)]
@@ -141,6 +144,23 @@ impl Hub {
         let url = self.route(&["factory", profile.as_str(), "instance"], &query);
         let answer = self
             .send(client, Method::GET, url, None, wait + REQUEST_MARGIN)
+            .await?;
+        decode(&answer)
+    }
+
+    /// `GET /factory/{profile}/instances?scope=`.
+    pub async fn factory(
+        &self,
+        client: &HubClient,
+        profile: &HubProfileId,
+        scope: FactoryScope,
+    ) -> Result<FactoryState, HubError> {
+        let url = self.route(
+            &["factory", profile.as_str(), "instances"],
+            &[("scope", scope.as_str())],
+        );
+        let answer = self
+            .send(client, Method::GET, url, None, FACTORY_TIMEOUT)
             .await?;
         decode(&answer)
     }

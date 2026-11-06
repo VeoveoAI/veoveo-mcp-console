@@ -70,29 +70,27 @@ fn server_config() -> ServerConfig {
 /// What the server is and which skills say how to use it.
 const INSTRUCTIONS: &str = "The Hub's activities as you: your factory instances, the \
      branch that serves you each server, your repositories and groups, and your Computer. \
-     Its skills say how: skill://console/serve-a-branch/SKILL.md, \
-     skill://console/read-instance-logs/SKILL.md, skill://console/share-repositories/SKILL.md \
-     and skill://console/update-the-computer/SKILL.md.";
+     Its skills say how: skill://console/see-the-factory/SKILL.md, \
+     skill://console/serve-a-branch/SKILL.md, skill://console/read-instance-logs/SKILL.md, \
+     skill://console/share-repositories/SKILL.md and skill://console/update-the-computer/SKILL.md.";
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn the_instructions_name_every_skill_the_server_serves() {
         let skills = &*super::SERVER_SKILLS;
-        assert_eq!(skills.skills().len(), 4);
+        assert_eq!(skills.skills().len(), 5);
         for skill in skills.skills() {
             assert!(super::INSTRUCTIONS.contains(&skill.uri), "{}", skill.uri);
         }
     }
 
     #[test]
-    fn the_setup_lists_only_the_hosts_documents() {
+    fn the_setup_lists_only_the_hosts_documents_and_the_app() {
         let setup = &*super::SERVER_SETUP;
-        assert!(
-            setup
-                .resources()
-                .iter()
-                .all(|resource| resource.address().as_str().starts_with("console://")),
-        );
+        assert!(setup.resources().iter().all(|resource| {
+            let address = resource.address().as_str();
+            address.starts_with("console://") || address == "ui://console/factory"
+        }),);
     }
 }

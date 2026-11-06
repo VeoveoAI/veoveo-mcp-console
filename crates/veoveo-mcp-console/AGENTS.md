@@ -22,6 +22,9 @@ holds the authority and decides every call.
 - `computer`'s description follows the Hub's public `GET /computer/version`, which
   console reads without credentials about every 30 seconds; it names only the current
   version, never a caller's state.
+- `factory` and its App, `ui://console/factory`, show what the Hub answers and decide
+  nothing. The App's look and bridge come from `veoveo-hub-ui`; a name reaches the page
+  only as escaped text.
 - `logs` reads `status` first as its access check, then queries the log store by the
   sandbox ID that status names, without credentials. Keep it one query by the
   `openshell.ai/boundary-pair` label.

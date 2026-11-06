@@ -4,6 +4,7 @@ use veoveo_hub_sdk::calls::ProviderContract;
 use veoveo_types::ServerSlug;
 
 mod computer;
+mod factory;
 mod logs;
 mod permissions;
 mod repository;
@@ -14,6 +15,11 @@ mod status;
 pub use computer::{
     ComputerRequest, ComputerStatus, ComputerVersion, ImageChange, NetworkRule, Restart,
     RestartFailure, Updated, WhatsNew,
+};
+pub use factory::{
+    FactoryAccess, FactoryBranch, FactoryBranchState, FactoryDatabase, FactoryInstance,
+    FactoryInstanceDetail, FactoryLinkFailure, FactoryPerson, FactoryRepository, FactoryRequest,
+    FactoryRoute, FactoryScope, FactorySelection, FactoryState,
 };
 pub use logs::{
     DEFAULT_LOG_LINES, LogLine, LogSource, Logs, LogsRequest, MAX_LOG_LINE_BYTES, MAX_LOG_LINES,

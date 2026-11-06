@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Factory</title>
+<style>
+/* veoveo-hub-ui's written look: the host's theme, and these values where it says nothing. */
+:root {
+  --bg: var(--color-background-primary, #ffffff);
+  --soft: var(--color-background-secondary, #f3f4f6);
+  --fg: var(--color-text-primary, #16181d);
+  --muted: var(--color-text-secondary, #5b616e);
+  --line: var(--color-border-primary, #e1e4e9);
+  --accent: var(--color-text-info, #2557d6);
+  --danger: var(--color-text-danger, #b42318);
+  --warn: var(--color-text-warning, #9a6700);
+  --sans: var(--font-sans, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  --mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: var(--color-background-primary, #14161a);
+  --soft: var(--color-background-secondary, #1e2127);
+  --fg: var(--color-text-primary, #e8eaee);
+  --muted: var(--color-text-secondary, #9aa1ad);
+  --line: var(--color-border-primary, #2c3038);
+  --accent: var(--color-text-info, #7aa2ff);
+  --danger: var(--color-text-danger, #ff8a80);
+  --warn: var(--color-text-warning, #e3b341);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); }
+main { padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; max-width: 1680px; margin: 0 auto; }
+code { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.spacer { flex: 1; }
+
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.switch button { padding: 4px 12px; font-size: 13px; color: var(--muted); }
+.switch button + button { border-left: 1px solid var(--line); }
+.switch button[aria-pressed="true"] { background: var(--soft); color: var(--fg); font-weight: 600; }
+.refresh { font-size: 12px; color: var(--muted); }
+.refresh:hover { color: var(--fg); text-decoration: underline; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 12.5px; display: inline-flex; gap: 6px; align-items: baseline; white-space: nowrap; }
+button.chip:hover, button.chip:focus-visible { border-color: var(--accent); }
+.chip b { font-weight: 600; }
+.chip.danger b { color: var(--danger); }
+.chip.warn b { color: var(--warn); }
+.chip code { font-size: 12px; }
+.you-chip { background: color-mix(in srgb, var(--accent) 11%, var(--bg)); box-shadow: inset 3px 0 0 var(--accent); border-radius: 6px; padding: 3px 10px 3px 12px; font-size: 13px; display: inline-flex; gap: 6px; align-items: baseline; white-space: nowrap; }
+.you-chip code { font-size: 13px; font-weight: 600; }
+.you-chip.failing { background: color-mix(in srgb, var(--danger) 11%, var(--bg)); box-shadow: inset 3px 0 0 var(--danger); }
+.error { color: var(--danger); margin: 0; }
+.count { color: var(--muted); font-weight: 400; margin-left: 3px; font-size: 12px; }
+
+.tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--line); }
+.tabs button { padding: 6px 1px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--fg); font-weight: 600; border-color: var(--fg); }
+
+.grid-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; max-height: calc(100vh - 150px); width: fit-content; max-width: 100%; }
+table.grid { border-collapse: separate; border-spacing: 0; width: max-content; }
+.grid th, .grid td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; text-align: left; vertical-align: top; font-weight: 400; background: var(--bg); }
+.grid tr > :last-child { border-right: 0; }
+.grid tbody tr:last-child > * { border-bottom: 0; }
+.grid thead th { position: sticky; top: 0; z-index: 2; background: var(--soft); padding: 8px 10px; min-width: 176px; }
+.grid thead th.corner { left: 0; z-index: 3; }
+.grid thead th.owner-head { min-width: 120px; }
+.grid th.row { position: sticky; left: 0; z-index: 1; padding: 7px 10px; width: 236px; min-width: 236px; max-width: 236px; }
+.grid td.owner-td { padding: 7px 10px; font-size: 13px; min-width: 120px; max-width: 170px; }
+.grid td.you { background: color-mix(in srgb, var(--accent) 11%, var(--bg)); box-shadow: inset 3px 0 0 var(--accent); }
+.col-name { display: flex; align-items: baseline; gap: 6px; }
+.col-name code { font-size: 13px; font-weight: 600; color: var(--fg); }
+.pill { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 9px; padding: 0 6px; }
+.col-data { font-size: 11.5px; color: var(--muted); margin-top: 1px; white-space: nowrap; }
+.row-button { display: block; width: 100%; }
+.row-button:hover .slug { text-decoration: underline; }
+.slug { font-weight: 600; display: block; }
+.origin { font-size: 12px; color: var(--muted); display: block; overflow-wrap: anywhere; }
+.row-extra { display: block; font-size: 12px; margin-top: 2px; }
+button.row-extra { color: var(--muted); }
+button.row-extra:hover { color: var(--fg); text-decoration: underline; }
+.link-count { color: var(--accent); font-weight: 600; }
+.link-row th.row { padding-left: 30px; }
+.link-row th.row::before { content: ""; position: absolute; left: 15px; top: 0; bottom: 0; border-left: 2px solid var(--accent); opacity: .45; }
+.link-name { font-family: var(--mono); font-size: 12.5px; font-weight: 600; display: block; }
+
+.cell { display: block; width: 100%; min-height: 100%; padding: 7px 10px; position: relative; }
+.cell:hover { background: color-mix(in srgb, var(--muted) 9%, transparent); }
+.cell .rev { display: block; }
+.cell .meta { display: block; font-size: 11.5px; color: var(--muted); }
+.cell .meta code { font-size: 11.5px; }
+.cell .you-mark { position: absolute; top: 7px; right: 8px; font-size: 10.5px; font-weight: 700; color: var(--accent); }
+.cell.open { outline: 2px solid var(--muted); outline-offset: -2px; }
+.state-danger { color: var(--danger); font-weight: 600; font-size: 12px; display: block; }
+.state-warn { color: var(--warn); font-weight: 600; font-size: 12px; display: block; }
+.plain-cell { display: block; padding: 7px 10px; font-size: 12px; color: var(--muted); }
+
+.trays { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; margin-top: 12px; align-items: baseline; font-size: 12px; color: var(--muted); }
+.trays .chip { padding: 1px 9px; }
+
+table.plain { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.plain th { font-weight: 500; color: var(--muted); font-size: 12.5px; }
+.plain th, .plain td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.plain td .small { display: block; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.link-group { margin-top: 18px; }
+.link-group h3 { font-size: 14px; font-weight: 600; margin: 0 0 6px; display: flex; gap: 8px; align-items: baseline; }
+.link-group h3 code { font-size: 13px; }
+.link-group tbody tr { cursor: pointer; }
+.link-group tbody tr:hover td { background: var(--soft); }
+
+.panel { position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 92vw; background: var(--bg); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0,0,0,.12); padding: 18px 20px 28px; overflow: auto; z-index: 10; }
+.panel h2 { font-size: 16px; margin: 0; font-weight: 600; }
+.panel h2 code { font-size: 14px; }
+.panel-head { display: flex; gap: 8px; align-items: start; }
+.panel .close { font-size: 18px; line-height: 1; padding: 2px 6px; color: var(--muted); }
+.panel-status { margin: 4px 0 12px; font-size: 13.5px; }
+.problem { border-left: 3px solid var(--warn); padding: 4px 10px; margin: 0 0 10px; font-size: 13px; background: var(--soft); border-radius: 0 8px 8px 0; overflow-wrap: anywhere; }
+.problem.danger { border-color: var(--danger); }
+.panel h3 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 14px 0 4px; }
+.panel dl { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 13px; }
+.panel dt { color: var(--muted); }
+.panel dd { margin: 0; overflow-wrap: anywhere; }
+.panel table.plain { font-size: 12.5px; }
+.panel table.plain td, .panel table.plain th { padding: 4px 8px 4px 0; }
+.panel tr[data-click] { cursor: pointer; }
+.actions { display: grid; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.btn { border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px; text-align: center; font-size: 13px; }
+.btn:hover, .btn:focus-visible { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.btn:disabled { opacity: .55; cursor: default; }
+.explain { font-size: 12.5px; color: var(--muted); margin: 0; }
+.logs { font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--soft); border-radius: 8px; padding: 8px; max-height: 320px; overflow: auto; margin: 0; }
+.logs .denied { color: var(--danger); }
+.logs .stderr { color: var(--warn); }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Factory</h1>
+    <button class="refresh" id="refresh">Refresh</button>
+    <span class="muted small" id="as-of"></span>
+    <span class="spacer"></span>
+    <div class="switch" role="group" aria-label="Scope">
+      <button id="scope-own" aria-pressed="true">Mine</button>
+      <button id="scope-tenant" aria-pressed="false">Whole factory</button>
+    </div>
+  </div>
+  <p class="error" id="error" hidden></p>
+  <div class="chips" id="you" hidden></div>
+  <div class="chips" id="attention"></div>
+  <div class="tabs" role="tablist" id="tabs" hidden>
+    <button role="tab" data-tab="servers" data-label="Servers" aria-selected="true">Servers</button>
+    <button role="tab" data-tab="links" data-label="Links" aria-selected="false">Links</button>
+    <button role="tab" data-tab="data" data-label="Data" aria-selected="false">Data</button>
+    <button role="tab" data-tab="people" data-label="People" aria-selected="false" id="tab-people">People</button>
+  </div>
+  <section id="servers"></section>
+  <section id="links" hidden></section>
+  <section id="data" hidden></section>
+  <section id="people" hidden></section>
+</main>
+<aside class="panel" id="panel" hidden aria-label="Details"></aside>
+<script>
+/*veoveoApp*/
+</script>
+<script>
+"use strict";
+const state = { scope: "own", tab: "servers", answer: null, openKey: null, reopen: null, moreBranches: false, allAttention: false, toggled: new Set() };
+const clicks = [];
+const onClick = (fn) => { clicks.push(fn); return clicks.length - 1; };
+addEventListener("click", (e) => { const t = e.target.closest("[data-click]"); if (t) { e.stopPropagation(); clicks[+t.dataset.click](); } });
+
+const element = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const code = (s) => `<code>${esc(s)}</code>`;
+const short = (r) => (r || "").slice(0, 8);
+const shortBranch = (b) => (b || "").length > 18 ? b.slice(0, 15) + "…" : (b || "");
+const day = (t) => t ? new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+const when = (t) => t ? new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+const firstName = (p) => (p || "").includes("@") ? p.split("@")[0] : (p || "");
+const size = (b) => b >= 1048576 ? (b / 1048576).toFixed(b >= 104857600 ? 0 : 1) + " MB" : Math.round(b / 1024) + " KB";
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/* What the page reads from the answer. */
+let model = null;
+function build(answer) {
+  const people = new Map(answer.people.map((p) => [p.principal, p.email || p.name]));
+  const who = (principal) => principal ? (people.get(principal) || "unknown person") : "";
+  const titles = new Map(answer.repositories.map((r) => [r.id, r.title]));
+  const routes = new Map(answer.routes.map((r) => [r.server, r]));
+  const subject = (a) => a.principal ? who(a.principal) : `group ${a.group}`;
+  const byId = new Map(answer.repositories.map((r) => [r.id, r]));
+  const instances = [];
+  const rows = [];
+  for (const r of answer.repositories) {
+    const row = {
+      id: r.id, title: r.title, server: r.server, reached: r.reached, linked: r.linked, name: r.server || r.title,
+      owners: r.access.filter((a) => a.level === "owner").map(subject),
+      reach: r.access.map(subject),
+      watcher: r.watch ? who(r.watch.watcher) : null,
+      watchFailed: r.watch ? r.watch.failed : null,
+      branchesError: r.branchesError,
+      gaps: r.branches.filter((b) => !["served", "links_failed"].includes(b.state)),
+      latest: new Map(r.branches.map((b) => [b.name, b.latest])),
+      linkGaps: r.branches.flatMap((b) => b.linkFailures.map((f) => ({ branch: b.name, link: f.link, linkedRepositoryId: f.linkedRepository, linkedRepository: titles.get(f.linkedRepository) || f.linkedRepository, revision: f.revision, message: f.message }))),
+      list: [],
+    };
+    for (const i of r.instances) {
+      const d = i.detail;
+      const s = d && d.status;
+      const runner = s && s.runner;
+      const linked = runner && byId.get(runner.linkedRepository);
+      const item = {
+        row, branch: i.branch, link: i.link, healthState: i.health, hidden: !d,
+        database: d && d.database, createdAt: d && d.createdAt, servedAt: d && d.servedAt,
+        pusher: d ? who(d.pusher) : "", pusherNoGrant: !!(d && d.pusher && !d.pusherHoldsGrant), linkedPusher: d ? who(d.linkedPusher) : "",
+        applied: s && s.appliedRevision, serving: s && s.servingRevision, failed: s && s.failed, warning: s && s.warning,
+        ungranted: (s && s.ungrantedProviders) || [], sandbox: s && s.sandbox, sandboxName: s && s.sandboxName,
+        linkedRepositoryId: runner && runner.linkedRepository, linkedRepository: runner ? (titles.get(runner.linkedRepository) || runner.linkedRepository) : null,
+        trackedBranch: runner && runner.trackedBranch.name, linkedRevision: runner && runner.linkedRevision,
+        linkedOwners: linked ? linked.access.filter((a) => a.level === "owner").map(subject) : [],
+        linkedWatcher: linked && linked.watch ? who(linked.watch.watcher) : null,
+        linkedReach: linked ? linked.access.map(subject) : [],
+      };
+      row.list.push(item);
+      instances.push(item);
+    }
+    rows.push(row);
+  }
+  const shown = rows.filter((r) => r.list.length || r.gaps.some((g) => g.state !== "no_run") || r.linkGaps.length).sort((a, b) => a.name.localeCompare(b.name));
+  const idle = rows.filter((r) => !shown.includes(r) && r.watcher && !r.linked);
+  const selections = (answer.selections || []).map((s) => ({ person: who(s.principal), principal: s.principal, server: s.server, branch: s.branch }));
+  return { answer, who, routes, rows: shown, idle, allRows: rows, instances, selections, people, base: answer.baseBranch, me: null };
+}
+const nameOf = (i) => i.row.name;
+const routed = (name) => (model.routes.get(name) || {}).branch || model.base;
+const isYou = (i) => routed(nameOf(i)) === i.branch;
+const keyOf = (i) => `${i.row.id}|${i.branch}|${i.link || ""}`;
+const installationDb = () => (model.answer.databases.find((d) => d.installation) || {}).name;
+const dataLabel = (database) => database === installationDb() ? "installation database" : database;
+const behind = (i) => { const latest = i.row.latest.get(i.branch); return latest && i.applied && latest !== i.applied ? latest : null; };
+
+function health(i) {
+  if (i.hidden) return i.healthState === "healthy" ? null : { kind: "state", tone: "warn", word: i.healthState === "offline" ? "Offline" : "Degraded" };
+  if (i.failed) return { kind: "failed", tone: "danger", word: "Failed at " + i.failed.stage };
+  if (!i.sandbox) return { kind: "gone", tone: "danger", word: "No sandbox" };
+  if (!i.serving) return { kind: "unserved", tone: "warn", word: "Not serving yet" };
+  if (i.pusherNoGrant) return { kind: "no-grant", tone: "warn", word: "Won't restart" };
+  return null;
+}
+const gapWord = { pending: "Should serve, doesn't", prepare_failed: "Should serve, doesn't", name_refused: "Name refused", unreadable: "Couldn't read" };
+const gapText = (g) => g.message || (g.state === "pending"
+  ? `Its latest revision, ${short(g.latest)}, has openshell/run, and the Hub has made no instance of it yet.`
+  : g.state === "name_refused" ? "The Hub cannot name an instance after this branch, so it skips it." : "Nothing says why.");
+const brokenLink = (r, link) => r.linkGaps.some((g) => g.link === link) || r.list.some((i) => i.link === link && (health(i) || i.ungranted.length));
+const linkNames = (r) => [...new Set(r.list.filter((i) => i.link).map((i) => i.link).concat(r.linkGaps.map((g) => g.link)))].sort();
+const isCollapsed = (r) => (linkNames(r).length > 8) !== state.toggled.has(r.id);
+
+/* Where the person is: the grid's own highlight, one chip per branch they are on. */
+function renderYou() {
+  const base = model.base;
+  const away = model.answer.routes.filter((r) => r.selected && r.branch !== base);
+  const gone = model.answer.routes.filter((r) => r.unavailable);
+  const chips = [`<span class="you-chip"><code>${esc(base)}</code></span>`]
+    .concat(away.slice(0, 5).map((r) => `<span class="you-chip">${esc(r.server)} <code>${esc(r.branch)}</code></span>`));
+  if (away.length > 5) chips.push(`<span class="muted small">+${away.length - 5}</span>`);
+  for (const r of gone) chips.push(`<span class="you-chip failing" title="${esc(r.unavailable)}">${esc(r.server)} <code>${esc(r.branch || "")}</code></span>`);
+  element("you").innerHTML = chips.join("");
+}
+
+/* What is wrong: one chip for each kind; its sentences are a click away. */
+function renderAttention() {
+  const items = [];
+  const add = (tone, word, target, text, open) => items.push({ tone, word, target, text, open });
+  for (const route of model.answer.routes.filter((r) => r.unavailable)) add("danger", "Calls fail", route.server, route.unavailable, () => { const r = model.rows.find((x) => x.name === route.server); if (r) openRepo(r); });
+  for (const r of model.rows) {
+    if (r.reached && !r.linked && r.list.length && !r.watcher) add("danger", "Nobody watches", r.name, "Pushes are not built until someone with a grant watches it.", () => openRepo(r));
+    if (r.watchFailed) add("danger", "Not following pushes", r.name, r.watchFailed, () => openRepo(r));
+    if (r.branchesError) add("warn", "Couldn't read Lore", r.name, r.branchesError, () => openRepo(r));
+    for (const g of r.gaps.filter((g) => g.state !== "no_run")) add("danger", gapWord[g.state], `${r.name} ${g.name}`, gapText(g), () => openGap(r, g));
+    for (const g of r.linkGaps) add("danger", "No runner", `${r.name} / ${g.link}`, g.message, () => openLinkGap(r, g));
+  }
+  for (const i of model.instances) {
+    const h = health(i);
+    const label = `${nameOf(i)}${i.link ? " / " + i.link : ""}${i.branch === model.base ? "" : " " + i.branch}`;
+    if (h && h.kind === "no-grant") add("warn", h.word, label, `Latest pusher ${i.pusher} holds no grant. Next start can't fetch the branch.`, () => openInstance(i));
+    if (h && h.kind === "failed") add("danger", h.word, label, i.failed.message, () => openInstance(i));
+    if (h && h.kind === "gone") add("danger", h.word, label, "OpenShell has no sandbox for it.", () => openInstance(i));
+    if (h && h.kind === "unserved") add("warn", h.word, label, "Its server has not registered since its sandbox started.", () => openInstance(i));
+    if (h && h.kind === "state") add("warn", h.word, label, "", () => openInstance(i));
+    const latest = behind(i);
+    if (latest && !(h && h.kind === "failed")) add("warn", "Behind its branch", label, `Serves ${short(i.applied)}, branch at ${short(latest)}.`, () => openInstance(i));
+    for (const p of i.ungranted) add("warn", "Provider not granted", label, `Asks for ${p}, and runs without it.`, () => openInstance(i));
+  }
+  const capped = model.instances.filter((i) => i.warning);
+  for (const pusher of new Set(capped.map((i) => i.pusher))) {
+    const cap = ((capped.find((i) => i.pusher === pusher).warning || "").match(/cap of (\d+)/) || [])[1];
+    const count = model.instances.filter((i) => i.pusher === pusher).length;
+    const counted = state.scope === "tenant" ? String(count) : `${count}+`;
+    add("warn", "Over soft cap", `${firstName(pusher)} ${counted}${cap ? " / " + cap : ""}`, `Latest pusher of ${counted} instances${cap ? `; the cap is ${cap}` : ""}.`, null);
+  }
+  const kinds = new Map();
+  for (const item of items) { if (!kinds.has(item.word)) kinds.set(item.word, []); kinds.get(item.word).push(item); }
+  const order = [...kinds.values()].sort((a, b) => (b[0].tone === "danger") - (a[0].tone === "danger"));
+  element("attention").innerHTML = order.map((list) => {
+    const first = list[0];
+    const open = () => { if (list.length === 1 && first.open) first.open(); else openList(first.word, first.tone, list); };
+    return `<button class="chip ${first.tone}" title="${esc(first.text)}" data-click="${onClick(open)}"><b>${esc(first.word)}</b>${list.length === 1 ? code(first.target) : `<span>${list.length}</span>`}</button>`;
+  }).join("");
+}
+
+function openList(word, tone, list) {
+  const same = new Set(list.map((item) => item.text.replace(list[0].target, ""))).size === 1;
+  showPanel(`list:${word}`, null, panelHead(esc(word))
+    + (same && list[0].text ? `<p class="problem ${tone === "danger" ? "danger" : ""}" style="margin-top:8px">${esc(list[0].text)}</p>` : "")
+    + `<table class="plain"><tbody>${list.map((item) => `<tr${item.open ? ` data-click="${onClick(item.open)}"` : ""}><td>${code(item.target)}</td>${same ? "" : `<td class="muted">${esc(item.text)}</td>`}</tr>`).join("")}</tbody></table>`);
+}
+
+/* The grid: servers down, branches across. */
+function columns() {
+  const latest = new Map();
+  const note = (b, t) => latest.set(b, Math.max(latest.get(b) || 0, t));
+  for (const i of model.instances) note(i.branch, Date.parse(i.servedAt || i.createdAt) || 0);
+  for (const r of model.rows) {
+    for (const g of r.gaps) if (g.state !== "no_run") note(g.name, 1);
+    for (const g of r.linkGaps) note(g.branch, 1);
+  }
+  const yours = new Set(model.answer.routes.filter((r) => r.selected).map((r) => r.branch));
+  return [...latest.keys()].sort((a, b) => (b === model.base) - (a === model.base) || yours.has(b) - yours.has(a) || latest.get(b) - latest.get(a));
+}
+
+function cellHtml(i) {
+  const h = health(i);
+  const you = isYou(i);
+  const others = model.selections.filter((s) => s.server === i.row.server && s.branch === i.branch).length;
+  const latest = behind(i);
+  const rev = i.link ? i.linkedRevision : i.applied;
+  return `<button class="cell${state.openKey === keyOf(i) ? " open" : ""}" data-click="${onClick(() => openInstance(i))}" aria-label="${esc(nameOf(i))}${i.link ? " " + esc(i.link) : ""} on ${esc(i.branch)}${you ? ", you use this" : ""}">`
+    + (you && i.branch !== model.base ? `<span class="you-mark">you</span>` : "")
+    + (h ? `<span class="state-${h.tone}">${esc(h.word)}</span>` : "")
+    + (i.ungranted.length ? `<span class="state-warn">Provider not granted</span>` : "")
+    + (i.hidden ? `<span class="meta">no grant</span>` : `<code class="rev">${esc(short(rev))}</code>`)
+    + (latest ? `<span class="meta">latest ${code(short(latest))}</span>` : "")
+    + (i.hidden ? "" : `<span class="meta">${i.servedAt ? "since " + esc(day(i.servedAt)) : ""}${others ? ` · ${others} selected it` : ""}</span>`)
+    + (i.link && !i.hidden ? `<span class="meta">${esc(i.database)}</span>` : "")
+    + `</button>`;
+}
+
+function renderServers() {
+  const all = columns();
+  const LIMIT = 8;
+  const cols = state.moreBranches ? all : all.slice(0, LIMIT);
+  const hidden = all.length - cols.length;
+  const whole = state.scope === "tenant";
+
+  const head = cols.map((b) => {
+    const insts = model.instances.filter((i) => i.branch === b);
+    const plain = insts.find((i) => !i.link && i.database);
+    const dbText = plain ? dataLabel(plain.database) : insts.length ? "each link has its own" : "no database yet";
+    return `<th scope="col"><div class="col-name">${code(b)}${b === model.base ? `<span class="pill">base</span>` : ""}</div>`
+      + `<div class="col-data" title="Data environment">${esc(dbText)}</div></th>`;
+  }).join("");
+
+  const body = model.rows.map((r) => {
+    const links = linkNames(r);
+    const quiet = r.gaps.filter((g) => g.state === "no_run");
+    const collapsed = isCollapsed(r);
+    const owner = whole ? `<td class="owner-td">${esc(r.owners.map(firstName).join(", ") || "nobody")}</td>` : "";
+    const rowHead = `<th scope="row" class="row"><button class="row-button" data-click="${onClick(() => openRepo(r))}"><span class="slug">${esc(r.name)}</span><span class="origin">Lore ${esc(r.title)}</span></button>`
+      + (links.length ? `<button class="row-extra" data-click="${onClick(() => { state.toggled.has(r.id) ? state.toggled.delete(r.id) : state.toggled.add(r.id); renderServers(); })}"><span class="link-count">${collapsed ? "▸" : "▾"} ${plural(links.length, "link", "links")}</span></button>` : "")
+      + (quiet.length ? `<button class="row-extra" data-click="${onClick(() => openRepo(r))}">+${plural(quiet.length, "branch", "branches")}, no run</button>` : "")
+      + (r.watchFailed ? `<span class="row-extra state-danger">Not following pushes</span>` : r.reached && !r.linked && r.list.length && !r.watcher ? `<span class="row-extra state-danger">Nobody watches</span>` : "")
+      + `</th>${owner}`;
+    const cells = cols.map((b) => {
+      const plain = r.list.find((i) => i.branch === b && !i.link);
+      const here = r.list.filter((i) => i.branch === b && i.link);
+      const brokenHere = r.linkGaps.filter((g) => g.branch === b);
+      const gap = r.gaps.find((g) => g.name === b && g.state !== "no_run");
+      const you = routed(r.name) === b;
+      const cls = you ? ' class="you"' : "";
+      if (plain) return `<td${cls}>${cellHtml(plain)}</td>`;
+      if (here.length || brokenHere.length) {
+        const program = (here.find((i) => i.applied) || {}).applied || (brokenHere[0] || {}).revision;
+        return `<td${cls}><button class="cell${state.openKey === `${r.id}|${b}|` ? " open" : ""}" data-click="${onClick(() => openBranch(r, b))}" aria-label="${esc(r.name)} on ${esc(b)}">${esc(plural(here.length + brokenHere.length, "link", "links"))}`
+          + (program ? `<span class="meta">program ${code(short(program))}</span>` : "")
+          + (brokenHere.length ? `<span class="state-danger">${brokenHere.length} with no runner</span>` : "") + `</button></td>`;
+      }
+      if (gap) return `<td${cls}><button class="cell${state.openKey === `${r.id}|${b}|gap` ? " open" : ""}" data-click="${onClick(() => openGap(r, gap))}" aria-label="${esc(r.name)} on ${esc(b)}"><span class="state-danger">${esc(gapWord[gap.state])}</span><code class="rev">${esc(short(gap.latest))}</code></button></td>`;
+      if (you && r.server) return `<td${cls}><span class="plain-cell"><span class="state-danger">Nothing serving</span></span></td>`;
+      return `<td></td>`;
+    }).join("");
+    let html = `<tr>${rowHead}${cells}</tr>`;
+    for (const link of links) {
+      if (collapsed && !brokenLink(r, link)) continue;
+      const sample = r.list.find((i) => i.link === link) || r.linkGaps.find((g) => g.link === link);
+      const linkHead = `<th scope="row" class="row"><span class="link-name">${esc(link)}</span><span class="origin">${sample.linkedRepository ? `link to Lore ${esc(sample.linkedRepository)}` : "link"}</span></th>`;
+      html += `<tr class="link-row">${linkHead}${whole ? `<td class="owner-td">${esc((sample.linkedOwners || []).map(firstName).join(", "))}</td>` : ""}` + cols.map((b) => {
+        const i = r.list.find((x) => x.link === link && x.branch === b);
+        const g = r.linkGaps.find((x) => x.link === link && x.branch === b);
+        const cls = routed(r.name) === b ? ' class="you"' : "";
+        if (i) return `<td${cls}>${cellHtml(i)}</td>`;
+        if (g) return `<td${cls}><button class="cell${state.openKey === `${r.id}|${b}|${link}` ? " open" : ""}" data-click="${onClick(() => openLinkGap(r, g))}" aria-label="${esc(r.name)} ${esc(link)} on ${esc(b)}"><span class="state-danger">No runner</span><span class="meta">${esc(g.linkedRepository)}</span></button></td>`;
+        return `<td${r.list.some((x) => x.branch === b && x.link) || r.linkGaps.some((x) => x.branch === b) ? cls : ""}></td>`;
+      }).join("") + `</tr>`;
+    }
+    return html;
+  }).join("");
+
+  const built = new Set(model.rows.map((r) => r.server));
+  const tray = (label, names) => names.length ? `<span>${esc(label)}</span><span class="chips">${names.map((n) => `<span class="chip">${esc(n)}</span>`).join("")}</span>` : "";
+  const noGrant = whole ? [] : model.answer.routes.map((r) => r.server).filter((s) => !built.has(s) && !model.answer.installed.includes(s)).sort();
+  const notes = tray("Installed", model.answer.installed.filter((s) => !built.has(s)))
+    + tray("No grant", noGrant)
+    + tray("Watched, idle", model.idle.map((r) => r.title));
+  const el = element("servers");
+  const more = onClick(() => { state.moreBranches = true; renderServers(); });
+  el.innerHTML = (model.rows.length
+    ? `<div class="grid-wrap"><table class="grid"><thead><tr><th class="corner" scope="col"><span class="muted small">Server</span></th>${whole ? `<th class="owner-head" scope="col"><span class="muted small">Owner</span></th>` : ""}${head}</tr></thead><tbody>${body}</tbody></table></div>`
+    : `<p class="muted">Nothing here is built from a repository you hold a grant on.</p>`)
+    + (hidden ? `<div style="margin-top:8px"><button class="btn" data-click="${more}">Show ${hidden} older branches</button></div>` : "")
+    + (notes ? `<div class="trays">${notes}</div>` : "");
+}
+
+/* Links, across the factory. */
+function renderLinks() {
+  const whole = state.scope === "tenant";
+  const groups = [];
+  for (const r of model.rows) {
+    if (!linkNames(r).length) continue;
+    const branches = [...new Set(r.list.filter((i) => i.link).map((i) => i.branch).concat(r.linkGaps.map((g) => g.branch)))];
+    for (const b of branches) groups.push({ r, b, list: r.list.filter((i) => i.link && i.branch === b), broken: r.linkGaps.filter((g) => g.branch === b) });
+  }
+  const html = groups.map(({ r, b, list, broken }) => {
+    const program = (list.find((i) => i.applied) || {}).applied || (broken[0] || {}).revision;
+    const rows = list.map((i) => {
+      const h = health(i);
+      const shownState = h ? `<span class="state-${h.tone}">${esc(h.word)}</span>` : i.ungranted.length ? `<span class="state-warn">Provider not granted</span>` : `<span class="muted">${i.servedAt ? "since " + esc(day(i.servedAt)) : "serving"}</span>`;
+      if (i.hidden) return `<tr data-click="${onClick(() => openInstance(i))}"><td>${code(i.link)}</td><td class="muted" colspan="${whole ? 5 : 4}">no grant</td><td>${shownState}</td></tr>`;
+      return `<tr data-click="${onClick(() => openInstance(i))}"><td>${code(i.link)}</td><td>${esc(i.linkedRepository)}<span class="small muted">at ${code(short(i.linkedRevision))}</span></td><td title="${esc(i.trackedBranch)}">${code(shortBranch(i.trackedBranch))}</td><td>${code(i.database)}</td><td>${esc(firstName(i.linkedWatcher) || "nobody")}</td>${whole ? `<td>${esc(i.linkedReach.map(firstName).join(", "))}</td>` : ""}<td>${shownState}</td></tr>`;
+    }).join("") + broken.map((g) => `<tr data-click="${onClick(() => openLinkGap(r, g))}"><td>${code(g.link)}</td><td>${esc(g.linkedRepository)}</td><td class="muted">—</td><td class="muted">—</td><td></td>${whole ? `<td></td>` : ""}<td><span class="state-danger">No runner</span></td></tr>`).join("");
+    return `<div class="link-group"><h3>${esc(r.name)} ${code(b)}${program ? `<span class="chip" title="The program every link here runs: Lore ${esc(r.title)}">program ${code(short(program))}</span>` : ""}</h3>`
+      + `<table class="plain"><thead><tr><th>Link</th><th>Serves</th><th>Push to</th><th>Data environment</th><th>Watcher</th>${whole ? "<th>Who can reach it</th>" : ""}<th>State</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }).join("");
+  element("links").innerHTML = html || `<p class="muted">No links.</p>`;
+}
+
+/* Data environments. */
+function renderData() {
+  const byDb = new Map();
+  for (const i of model.instances) {
+    if (!i.database) continue;
+    if (!byDb.has(i.database)) byDb.set(i.database, []);
+    byDb.get(i.database).push(i);
+  }
+  const installation = installationDb();
+  const sizes = new Map(model.answer.databases.map((d) => [d.name, d.bytes]));
+  const rows = [...byDb.entries()].sort((a, b) => (b[0] === installation) - (a[0] === installation) || a[0].localeCompare(b[0])).map(([db, list]) => {
+    const branch = list[0].branch + (list[0].link ? " / " + list[0].link : "");
+    const youThere = list.filter(isYou).map(nameOf);
+    const you = youThere.length ? [`<span class="you-chip">you</span>`] : [];
+    let using;
+    if (state.scope === "own") using = you;
+    else if (list[0].branch === model.base) using = [`<span class="muted">${list[0].link ? `grant on ${esc(list[0].linkedRepository)}` : "everyone else"}</span>`];
+    else using = [...you, ...model.selections.filter((s) => s.principal !== model.answer.caller && list.some((i) => i.row.server === s.server && i.branch === s.branch)).map((s) => `${esc(firstName(s.person))} <span class="muted">${esc(s.server)}</span>`)];
+    return `<tr><td>${code(branch)}${db === installation ? ` <span class="chip" title="Also holds the Hub's own state">installation</span>` : ""}</td>`
+      + `<td>${code(db)}</td><td class="num">${esc(size(sizes.get(db) || 0))}</td>`
+      + `<td>${[...new Set(list.map(nameOf))].map(esc).join(", ")}</td><td>${using.join("<br>") || `<span class="muted">—</span>`}</td></tr>`;
+  }).join("");
+  element("data").innerHTML = `<table class="plain"><thead><tr><th>Branch</th><th>Database</th><th>Size</th><th>Servers in it</th><th>On it</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* People: whole factory only. */
+function renderPeople() {
+  const rows = model.answer.people.map((p) => {
+    const name = p.email || p.name;
+    const access = model.answer.repositories.filter((r) => r.access.some((a) => a.principal === p.principal && a.level === "owner"));
+    const served = access.filter((r) => r.instances.length).map((r) => r.title).sort();
+    const other = access.length - served.length;
+    const pushes = model.instances.filter((i) => i.pusher === name).length;
+    const watches = model.answer.repositories.filter((r) => r.watch && r.watch.watcher === p.principal).length;
+    const selected = model.selections.filter((s) => s.principal === p.principal);
+    const over = model.instances.some((i) => i.warning && i.pusher === name);
+    return `<tr><td>${esc(name)}</td><td>${esc(served.join(", ") || "—")}${other ? `<span class="small muted">+${other} idle</span>` : ""}</td>`
+      + `<td class="num">${pushes}${over ? ` <span class="tag-warn">over cap</span>` : ""}</td><td class="num">${watches}</td>`
+      + `<td>${selected.map((s) => `${esc(s.server)} on ${code(s.branch)}`).join(", ") || `<span class="muted">—</span>`}</td></tr>`;
+  }).join("");
+  element("people").innerHTML = `<table class="plain"><thead><tr><th>Person</th><th>Owns</th><th>Latest pusher of</th><th>Watches</th><th>Using</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* Details. */
+function showPanel(key, reopen, html) {
+  state.openKey = key;
+  state.reopen = reopen;
+  renderServers();
+  const panel = element("panel");
+  panel.innerHTML = html;
+  panel.hidden = false;
+}
+const panelHead = (title) => `<div class="panel-head"><h2>${title}</h2><span class="spacer"></span><button class="close" aria-label="Close" data-click="${onClick(closePanel)}">×</button></div>`;
+function closePanel() { state.openKey = null; state.reopen = null; element("panel").hidden = true; if (model) renderServers(); }
+addEventListener("keydown", (e) => { if (e.key === "Escape") closePanel(); });
+
+/* Acts as the person, then reads again so the page shows what the Hub now answers. */
+async function act(tool, args, button) {
+  if (button) button.disabled = true;
+  try {
+    await veoveoApp.tool(tool, args);
+    await load(state.scope);
+  } catch (error) {
+    showError(error);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+function useBranch(server, branch, consequence) {
+  if (!server) return "";
+  const route = model.routes.get(server) || {};
+  if (routed(server) === branch) return route.selected && branch !== model.base
+    ? `<button class="btn" data-click="${onClick(() => act("select", { server, branch: null }))}">Back to ${code(model.base)}</button>`
+    : "";
+  return `<button class="btn primary" title="Every chat of yours" data-click="${onClick(() => act("select", { server, branch }))}">Use this branch</button>${consequence ? `<p class="explain">${consequence}</p>` : ""}`;
+}
+function logsButton(i) {
+  const id = `logs-${clicks.length}`;
+  const read = onClick(async () => {
+    const place = element(id);
+    place.hidden = false;
+    place.textContent = "Reading…";
+    try {
+      const args = { repository: i.row.id, branch: i.branch, limit: 200 };
+      if (i.link) args.link = i.link;
+      const logs = await veoveoApp.tool("logs", args, 60000);
+      place.innerHTML = logs.lines.map((line) => `<span class="${esc(line.source)}">${esc(line.text)}</span>`).join("\n") || "No output.";
+      place.scrollTop = place.scrollHeight;
+    } catch (error) {
+      place.textContent = String(error.message || error);
+    }
+  });
+  return `<button class="btn" data-click="${read}">Logs and denied requests</button><pre class="logs" id="${id}" hidden></pre>`;
+}
+
+const again = (find, open) => () => { const fresh = find(); if (fresh) open(fresh); else closePanel(); };
+const rowAgain = (r, open) => again(() => model.rows.find((x) => x.id === r.id), open);
+
+function openInstance(i) {
+  const instanceAgain = again(() => model.instances.find((x) => keyOf(x) === keyOf(i)), openInstance);
+  const name = nameOf(i);
+  const h = health(i);
+  const you = isYou(i);
+  if (i.hidden) {
+    showPanel(keyOf(i), instanceAgain, panelHead(`${esc(name)} / ${esc(i.link)} on ${code(i.branch)}`)
+      + `<p class="panel-status">${esc(i.healthState === "healthy" ? "Serving." : i.healthState === "offline" ? "Offline." : "Degraded.")}</p>`
+      + `<p class="explain">No grant on what it serves.</p>`);
+    return;
+  }
+  const shared = model.instances.filter((x) => x !== i && !x.link && x.database === i.database);
+  const others = model.selections.filter((s) => s.server === i.row.server && s.branch === i.branch);
+  const problems = [];
+  if (h && h.kind === "no-grant") problems.push({ tone: "", text: `Latest pusher ${esc(i.pusher)} holds no grant. Next start can't fetch the branch. A push from someone with a grant fixes it.` });
+  if (h && h.kind === "unserved") problems.push({ tone: "", text: "Its server has not registered since its sandbox started." });
+  if (h && h.kind === "gone") problems.push({ tone: "danger", text: "OpenShell has no sandbox for it." });
+  if (h && h.kind === "failed") problems.push({ tone: "danger", text: esc(i.failed.message) });
+  for (const p of i.ungranted) problems.push({ tone: "", text: `Asks for ${code(p)}: not granted, runs without it.` });
+  if (i.row.watchFailed) problems.push({ tone: "danger", text: esc(i.row.watchFailed) });
+  const status = i.serving ? `Serving since ${when(i.servedAt)}.` : (h ? h.word + "." : "");
+  const latest = behind(i);
+  const version = i.link
+    ? `<dt>Content</dt><dd>${esc(i.linkedRepository)} ${code(short(i.linkedRevision))}</dd><dt>Program</dt><dd>${esc(i.row.title)} ${code(short(i.applied))}</dd><dt>Pushed by</dt><dd>${esc(i.linkedPusher || "unknown")}</dd>`
+    : `<dt>Lore</dt><dd>${esc(i.row.title)}, ${code(i.branch)}</dd><dt>Applied</dt><dd>${code(short(i.applied))}</dd>${latest ? `<dt>Latest</dt><dd>${code(short(latest))}, not serving</dd>` : ""}<dt>Pushed by</dt><dd>${esc(i.pusher || "unknown")}</dd>`;
+  const change = i.link
+    ? `<h3>Push to change</h3><dl><dt>Content</dt><dd>${esc(i.linkedRepository)} ${code(i.trackedBranch)}</dd><dt title="Restarts every link on this branch">Program</dt><dd>${esc(i.row.title)} ${code(i.branch)}</dd></dl>`
+    : "";
+  const peopleLink = `<dt>Owners</dt><dd>${esc(i.linkedOwners.join(", ") || "none")}</dd><dt>Watcher</dt><dd>${esc(i.linkedWatcher || "nobody")}</dd><dt>Program</dt><dd>${esc(i.row.owners.join(", ") || "not shown")}</dd>`;
+  const peoplePlain = `<dt>Owners</dt><dd>${esc(i.row.owners.join(", ") || "none")}</dd><dt>Watcher</dt><dd>${esc(i.row.watcher || "Nobody, so pushes are not built")}</dd>`;
+  const reach = state.scope === "tenant" ? `<dt>Can reach it</dt><dd>${esc((i.link ? i.linkedReach : i.row.reach).join(", ") || "nobody")}</dd>` : "";
+  const onIt = state.scope === "tenant" ? `<dt>On it</dt><dd>${i.branch === model.base ? "everyone else" : esc(others.map((s) => s.person).join(", ") || "—")}</dd>` : "";
+  const consequence = i.link
+    ? ""
+    : `Data: ${esc(dataLabel(i.database))}`;
+  const called = i.row.server ? `<dt>Called as</dt><dd>${code(i.link ? `${i.row.server}__${i.link}__{tool}` : `${i.row.server}__{tool}`)}</dd>` : "";
+  const reachable = i.link ? true : i.row.reached;
+  showPanel(keyOf(i), instanceAgain,
+    panelHead(`${esc(name)}${i.link ? " / " + esc(i.link) : ""} on ${code(i.branch)}`)
+    + `<p class="panel-status">${esc(status)}${you ? " You're using it." : ""}</p>`
+    + problems.map((p) => `<p class="problem ${p.tone}">${p.text}</p>`).join("")
+    + `<h3>Version</h3><dl>${version}${called}</dl>`
+    + change
+    + `<h3>Data</h3><dl><dt>Database</dt><dd>${code(i.database)}${i.database === installationDb() ? " (installation database)" : ""}</dd>`
+    + `<dt>Shared with</dt><dd>${i.link || !shared.length ? "No other server" : [...new Set(shared.map(nameOf))].map(esc).join(", ") + ", each in its own schema"}</dd></dl>`
+    + `<h3>People</h3><dl>${i.link ? peopleLink : peoplePlain}${reach}${onIt}</dl>`
+    + `<h3>Sandbox</h3><dl><dt>Name</dt><dd>${code(i.sandboxName)}</dd><dt>Phase</dt><dd>${esc((i.sandbox || {}).phase || "none")}</dd><dt>Restarts</dt><dd>${esc((i.sandbox || {}).restartCount ?? 0)}</dd></dl>`
+    + `<div class="actions">${useBranch(i.row.server, i.branch, consequence)}`
+    + (reachable ? logsButton(i) : `<p class="explain">No logs here: you hold no grant on this repository.</p>`)
+    + `</div>`);
+}
+
+function openBranch(r, b) {
+  const list = r.list.filter((i) => i.link && i.branch === b);
+  const broken = r.linkGaps.filter((g) => g.branch === b);
+  const rows = list.map((i) => `<tr data-click="${onClick(() => openInstance(i))}"><td>${code(i.link)}</td><td>${esc(i.linkedRepository || "no grant")}</td><td>${i.hidden ? "" : code(short(i.linkedRevision))}</td></tr>`).join("")
+    + broken.map((g) => `<tr data-click="${onClick(() => openLinkGap(r, g))}"><td>${code(g.link)}</td><td>${esc(g.linkedRepository)}</td><td><span class="state-danger">No runner</span></td></tr>`).join("");
+  const program = (list.find((i) => i.applied) || {}).applied || (broken[0] || {}).revision;
+  showPanel(`${r.id}|${b}|`, rowAgain(r, (fresh) => openBranch(fresh, b)),
+    panelHead(`${esc(r.name)} on ${code(b)}`)
+    + `<p class="panel-status">${plural(list.length + broken.length, "link", "links")}</p>`
+    + `<h3>Program</h3><dl><dt>Lore</dt><dd>${esc(r.title)}, ${code(b)}</dd>${program ? `<dt>Revision</dt><dd>${code(short(program))}</dd>` : ""}<dt>Owner</dt><dd>${esc(r.owners.join(", ") || "not shown")}</dd></dl>`
+    + `<h3>Links</h3><table class="plain"><thead><tr><th>Link</th><th>Serves</th><th>Revision</th></tr></thead><tbody>${rows}</tbody></table>`
+    + `<div class="actions">${useBranch(r.server, b, "")}</div>`);
+}
+
+function openGap(r, g) {
+  showPanel(`${r.id}|${g.name}|gap`, rowAgain(r, (fresh) => { const gap = fresh.gaps.find((x) => x.name === g.name); if (gap) openGap(fresh, gap); else closePanel(); }),
+    panelHead(`${esc(r.name)} on ${code(g.name)}`)
+    + `<p class="panel-status">${esc(gapWord[g.state])}.</p>`
+    + `<p class="problem danger">${esc(gapText(g))}</p>`
+    + `<h3>Lore</h3><dl><dt>Repository</dt><dd>${esc(r.title)}</dd><dt>Latest</dt><dd>${code(short(g.latest))}</dd><dt>Watcher</dt><dd>${esc(r.watcher || "Nobody")}</dd></dl>`
+    + "");
+}
+
+function openLinkGap(r, g) {
+  showPanel(`${r.id}|${g.branch}|${g.link}`, rowAgain(r, (fresh) => { const gap = fresh.linkGaps.find((x) => x.branch === g.branch && x.link === g.link); if (gap) openLinkGap(fresh, gap); else closePanel(); }),
+    panelHead(`${esc(r.name)} / ${esc(g.link)} on ${code(g.branch)}`)
+    + ""
+    + `<p class="problem danger">${esc(g.message)}</p>`
+    + `<h3>Link</h3><dl><dt>Serves</dt><dd>Lore ${esc(g.linkedRepository)}</dd><dt>Program</dt><dd>Lore ${esc(r.title)}, ${code(g.branch)} at ${code(short(g.revision))}</dd>${r.server ? `<dt>Called as</dt><dd>${code(`${r.server}__${g.link}__{tool}`)}</dd>` : ""}</dl>`
+    + `<div class="actions"><button class="btn primary" data-click="${onClick(() => act("watch", { repository: g.linkedRepositoryId }))}">Watch ${esc(g.linkedRepository)}</button></div>`);
+}
+
+function openRepo(r) {
+  const plainRows = r.list.filter((i) => !i.link).map((i) => {
+    const h = health(i);
+    return `<tr data-click="${onClick(() => openInstance(i))}"><td>${code(i.branch)}</td><td>${code(short(i.applied))}</td><td>${h ? `<span class="state-${h.tone}">${esc(h.word)}</span>` : "Serving"}</td></tr>`;
+  }).join("");
+  const linkedBranches = [...new Set(r.list.filter((i) => i.link).map((i) => i.branch))].map((b) => `<tr data-click="${onClick(() => openBranch(r, b))}"><td>${code(b)}</td><td>${code(short((r.list.find((i) => i.link && i.branch === b && i.applied) || {}).applied))}</td><td>Serving through links</td></tr>`).join("");
+  const gapRows = r.gaps.map((g) => `<tr><td>${code(g.name)}</td><td>${code(short(g.latest))}</td><td>${g.state === "no_run" ? `<span class="muted">no ${code("openshell/run")}</span>` : `<span class="state-danger">${esc(gapWord[g.state])}</span>`}</td></tr>`).join("");
+  const canWatch = r.reached && (!r.watcher || r.watchFailed);
+  showPanel(`repo:${r.id}`, rowAgain(r, openRepo),
+    panelHead(esc(r.name))
+    + `<p class="panel-status">Lore ${esc(r.title)}</p>`
+    + (r.watchFailed ? `<p class="problem danger">${esc(r.watchFailed)}</p>` : "")
+    + (r.branchesError ? `<p class="problem">${esc(r.branchesError)}</p>` : "")
+    + (r.reached ? `<h3>People</h3><dl><dt>Owners</dt><dd>${esc(r.owners.join(", ") || "none")}</dd><dt>Watcher</dt><dd>${esc(r.watcher || "Nobody, so pushes are not built")}</dd></dl>` : "")
+    + `<h3>Branches</h3><table class="plain"><thead><tr><th>Branch</th><th>Revision</th><th>State</th></tr></thead><tbody>${plainRows}${linkedBranches}${gapRows}</tbody></table>`
+    + (canWatch ? `<div class="actions"><button class="btn primary" data-click="${onClick(() => act("watch", { repository: r.id }))}">Watch this repository</button></div>` : ""));
+}
+
+function setTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  for (const t of ["servers", "links", "data", "people"]) element(t).hidden = t !== tab;
+}
+function render() {
+  element("scope-own").setAttribute("aria-pressed", String(state.scope === "own"));
+  element("scope-tenant").setAttribute("aria-pressed", String(state.scope === "tenant"));
+  element("tab-people").hidden = state.scope !== "tenant";
+  if (state.scope !== "tenant" && state.tab === "people") state.tab = "servers";
+  setTab(state.tab);
+  element("you").hidden = false;
+  element("tabs").hidden = false;
+  element("as-of").textContent = when(model.answer.readAt);
+  const tabCounts = { servers: model.rows.length, links: model.rows.reduce((n, r) => n + linkNames(r).length, 0), data: model.answer.databases.length, people: model.answer.people.length };
+  document.querySelectorAll(".tabs button").forEach((b) => { b.innerHTML = `${esc(b.dataset.label)}<span class="count">${tabCounts[b.dataset.tab]}</span>`; });
+  renderYou(); renderAttention(); renderServers(); renderLinks(); renderData(); renderPeople();
+}
+function showError(error) {
+  const place = element("error");
+  place.textContent = String(error.message || error);
+  place.hidden = false;
+}
+
+/* Reads when the person asks, never on a timer. */
+async function load(scope) {
+  const again = state.reopen;
+  element("error").hidden = true;
+  const answer = await veoveoApp.tool("factory", { scope }, 65000);
+  state.scope = answer.scope;
+  state.answer = answer;
+  model = build(answer);
+  closePanel();
+  render();
+  if (again) { try { again(); } catch { closePanel(); } }
+}
+const read = (scope) => load(scope).catch((error) => {
+  showError(scope === "tenant" ? `The Hub did not answer the whole factory: ${error.message || error}` : error);
+});
+element("scope-own").addEventListener("click", () => read("own"));
+element("scope-tenant").addEventListener("click", () => read("tenant"));
+element("refresh").addEventListener("click", () => read(state.scope));
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+(async () => {
+  try {
+    await veoveoApp.connect("factory");
+    await read("own");
+  } catch (error) {
+    showError(error);
+  }
+})();
+</script>
+</body>
+</html>

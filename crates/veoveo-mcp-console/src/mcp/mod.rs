@@ -2,6 +2,7 @@
 //! Each tool calls the Hub for its caller, at the profile the caller came through, and
 //! reports the Hub's answer; a refusal is the tool's error. `logs` reads the log store
 //! for the sandbox the Hub's status names.
+mod app;
 pub mod computer;
 mod declarations;
 pub mod hub;
@@ -21,9 +22,9 @@ use veoveo_hub_sdk::{
 
 use crate::contract::{
     ComputerRequest, ComputerStatus, ConsolePermission, CreateGroupRequest,
-    CreateRepositoryRequest, DEFAULT_LOG_LINES, DeleteGroupRequest, Group, Groups, GroupsRequest,
-    InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES, Repository, RepositoryAccess,
-    RepositoryAccessRequest, SelectRequest, Selection, SetGroupMemberRequest,
+    CreateRepositoryRequest, DEFAULT_LOG_LINES, DeleteGroupRequest, FactoryRequest, FactoryState,
+    Group, Groups, GroupsRequest, InstanceStatus, Logs, LogsRequest, MAX_LOG_LINES, Repository,
+    RepositoryAccess, RepositoryAccessRequest, SelectRequest, Selection, SetGroupMemberRequest,
     ShareRepositoryRequest, StatusRequest, WatchRequest, Watching,
 };
 pub use declarations::{REGISTRATION, registration};
@@ -35,6 +36,7 @@ use setup::SERVER_SETUP;
 
 pub fn force_setup() {
     LazyLock::force(&SERVER_SETUP);
+    LazyLock::force(&app::APP);
 }
 
 /// The console's tools over the Hub and the log store.
@@ -143,6 +145,18 @@ impl ConsoleMcp {
                     error,
                 ),
             })
+    }
+
+    async fn factory(
+        &self,
+        request: FactoryRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<FactoryState, ToolError> {
+        let (client, profile) = caller(&context)?;
+        self.hub
+            .factory(&client, &profile, request.scope.unwrap_or_default())
+            .await
+            .map_err(|error| refused(format_args!("reading the factory"), error))
     }
 
     async fn select(
@@ -340,7 +354,16 @@ fn policy() -> RoutePolicy {
 }
 
 static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
-    Routes::<ConsoleMcp>::builder(policy())
+    let routes = Routes::<ConsoleMcp>::builder(policy())
+        .tool::<FactoryRequest, _, _>(
+            "The factory in one read: each Lore repository with its server, branches, links, \
+             instances and their revisions, data environments and who owns it, the branches \
+             that should serve and do not and why, and which branch serves you each server. \
+             `scope` is `own`, what your grants reach, or `tenant`, the whole factory, which \
+             the Hub answers only to an administrator.",
+            policy(),
+            |domain, request, context| async move { domain.factory(request, context).await },
+        )
         .tool::<StatusRequest, _, _>(
             "Why a branch of a repository serves or does not: the revision the Hub applied \
              and the one serving, the sandbox's phase, exit code, restart count and \
@@ -443,8 +466,8 @@ static ROUTES: LazyLock<Routes<ConsoleMcp>> = LazyLock::new(|| {
             |domain, request, context| async move { domain.delete_group(request, context).await },
         )
         .calls_hub()
-        .descriptions(computer::DESCRIPTIONS.clone())
-        .build()
+        .descriptions(computer::DESCRIPTIONS.clone());
+    app::register(routes).build()
 });
 
 impl DomainServer for ConsoleMcp {

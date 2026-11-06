@@ -341,6 +341,9 @@ async fn hub_route(
             .map(ToString::to_string)
             .collect(),
     });
+    if uri.path().starts_with("/factory/") && uri.path().ends_with("/instances") {
+        return axum::Json(factory_answer()).into_response();
+    }
     if let Some(answer) = sharing(&method, uri.path(), &body.clone().unwrap_or_default()) {
         return answer;
     }
@@ -404,6 +407,7 @@ async fn hub_route(
 fn hub_routes(requests: Requests) -> Router {
     Router::new()
         .route("/factory/{profile}/instance", get(hub_route))
+        .route("/factory/{profile}/instances", get(hub_route))
         .route("/factory/{profile}/watch", any(hub_route))
         .route("/lore/{profile}/repositories", any(hub_route))
         .route("/lore/{profile}/repositories/{id}/access", any(hub_route))
@@ -414,6 +418,59 @@ fn hub_routes(requests: Requests) -> Router {
         .route("/computer/status", get(hub_route))
         .route("/computer/restart", any(hub_route))
         .with_state(requests)
+}
+
+/// The Hub's answer to `GET /factory/{profile}/instances`, in its form: one server with an
+/// instance on the base branch, a branch that does not ask to serve and a link that could
+/// not run.
+fn factory_answer() -> Value {
+    json!({
+        "scope": "own",
+        "caller": "https://issuer#alice",
+        "readAt": "2026-11-05T10:00:00Z",
+        "baseBranch": "main",
+        "routes": [
+            {"server": "time", "branch": "main", "selected": false, "unavailable": null},
+            {"server": "artifact", "branch": null, "selected": false, "unavailable": null},
+        ],
+        "installed": ["artifact"],
+        "repositories": [{
+            "id": REPOSITORY, "title": "veoveo-mcp-time", "server": "time",
+            "reached": true, "linked": false,
+            "watch": {"watcher": "https://issuer#alice", "failed": null},
+            "access": [{"principal": "https://issuer#alice", "level": "owner"}],
+            "instances": [{
+                "branch": "main", "link": null, "health": "healthy",
+                "detail": {
+                    "server": "time", "database": "veoveo",
+                    "createdAt": "2026-11-05T09:00:00Z", "servedAt": "2026-11-05T09:01:00Z",
+                    "pusher": "https://issuer#alice", "pusherHoldsGrant": true,
+                    "linkedPusher": null,
+                    "status": {
+                        "deployment": "01a1adb8-9230-78a1-8bed-7a5415917c5c",
+                        "workspace": "vv-factory", "sandboxName": "8bed-7a5415917c5c",
+                        "sandboxId": "sandbox-1",
+                        "sandbox": {"phase": "ready", "exitCode": null, "restartCount": 0, "conditions": []},
+                        "appliedRevision": "1".repeat(64), "servingRevision": "1".repeat(64),
+                        "failed": null, "warning": null,
+                    },
+                },
+            }],
+            "branches": [
+                {"name": "main", "latest": "1".repeat(64), "state": "served", "linkFailures": []},
+                {"name": "notes", "latest": "2".repeat(64), "state": "no_run", "linkFailures": []},
+                {"name": "teams", "latest": "3".repeat(64), "state": "links_failed", "linkFailures": [{
+                    "link": "team-x", "linkedRepository": "feedfacefeedfacefeedfacefeedface",
+                    "revision": "3".repeat(64), "message": "nobody watches the linked repository",
+                }]},
+                {"name": "broken", "latest": "4".repeat(64), "state": "prepare_failed",
+                    "message": "reading failed", "linkFailures": []},
+            ],
+            "branchesError": null,
+        }],
+        "databases": [{"name": "veoveo", "bytes": 1024, "installation": true}],
+        "people": [{"principal": "https://issuer#alice", "name": "Alice", "email": "alice@example.com"}],
+    })
 }
 
 /// The query parameters of each request the fake log store received.
@@ -545,6 +602,82 @@ fn assert_as_the_caller(requests: &[Seen]) {
 }
 
 #[tokio::test]
+async fn factory_reads_the_hub_as_the_caller_at_the_scope_asked() {
+    let (mesh, requests, _) = console(&[ConsolePermission::Use]).await;
+    let own = call(&mesh, "factory", json!({})).await.unwrap();
+    assert_eq!(own["baseBranch"], "main");
+    let repository = &own["repositories"][0];
+    assert_eq!(repository["server"], "time");
+    assert_eq!(repository["instances"][0]["detail"]["database"], "veoveo");
+    assert_eq!(
+        repository["instances"][0]["detail"]["status"]["appliedRevision"],
+        "1".repeat(64)
+    );
+    assert_eq!(repository["branches"][1]["state"], "no_run");
+    assert_eq!(
+        repository["branches"][2]["linkFailures"][0]["link"],
+        "team-x"
+    );
+    assert_eq!(repository["branches"][3]["message"], "reading failed");
+    call(&mesh, "factory", json!({"scope": "tenant"}))
+        .await
+        .unwrap();
+    let requests = requests.lock().unwrap();
+    assert_as_the_caller(&requests);
+    assert_eq!(query(&requests[0]), [("scope", "own")]);
+    assert_eq!(query(&requests[1]), [("scope", "tenant")]);
+}
+
+#[tokio::test]
+async fn the_factory_app_is_listed_and_its_tools_are_linked_to_it() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let hub = Hub::new(
+        &url::Url::parse("http://127.0.0.1:9").unwrap(),
+        reqwest::Client::new(),
+    )
+    .unwrap();
+    let logs = LogStore::new(
+        &url::Url::parse("http://127.0.0.1:9").unwrap(),
+        reqwest::Client::new(),
+    )
+    .unwrap();
+    let listed = testing::TestHub::new(
+        testing::for_domain::<ConsoleMcp>()
+            .handler(move || Hosted::new(ConsoleMcp::new(hub.clone(), logs.clone())))
+            .build(),
+    )
+    .granting([ConsolePermission::Use.name()]);
+    let resources = listed.rpc("resources/list", json!({})).await;
+    let app = resources["result"]["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|resource| resource["uri"] == "ui://console/factory")
+        .unwrap_or_else(|| panic!("the App is listed: {resources}"))
+        .clone();
+    assert_eq!(app["mimeType"], "text/html;profile=mcp-app");
+    assert_eq!(app["title"], "Factory");
+    let read = listed
+        .rpc("resources/read", json!({"uri": "ui://console/factory"}))
+        .await;
+    let document = read["result"]["contents"][0]["text"].as_str().unwrap();
+    assert!(document.contains("const veoveoApp"), "the bridge is in it");
+    let tools = listed.rpc("tools/list", json!({})).await;
+    for name in ["factory", "select", "watch", "logs"] {
+        let tool = tools["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|tool| tool["name"] == name)
+            .unwrap();
+        assert_eq!(
+            tool["_meta"]["ui"]["resourceUri"], "ui://console/factory",
+            "{tool}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn every_tool_requires_the_console_permission_and_nothing_else() {
     let mut names: Vec<String> = AUTHORIZATION
         .requirements
@@ -560,6 +693,7 @@ async fn every_tool_requires_the_console_permission_and_nothing_else() {
             "create_group",
             "create_repository",
             "delete_group",
+            "factory",
             "groups",
             "logs",
             "repository_access",
@@ -1396,6 +1530,7 @@ async fn the_skills_are_served_to_a_caller_who_may_use_the_console() {
             .collect::<Vec<_>>(),
         [
             "read-instance-logs",
+            "see-the-factory",
             "serve-a-branch",
             "share-repositories",
             "update-the-computer"
