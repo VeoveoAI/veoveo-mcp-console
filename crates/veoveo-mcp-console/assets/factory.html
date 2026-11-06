@@ -266,7 +266,7 @@ const gapWord = { pending: "Should serve, doesn't", prepare_failed: "Should serv
 const gapText = (g) => g.message || (g.state === "pending"
   ? `Its latest revision, ${short(g.latest)}, has openshell/run, and the Hub has made no instance of it yet.`
   : g.state === "name_refused" ? "The Hub cannot name an instance after this branch, so it skips it." : "Nothing says why.");
-const brokenLink = (r, link) => r.linkGaps.some((g) => g.link === link) || r.list.some((i) => i.link === link && (health(i) || i.ungranted.length));
+const brokenLink = (r, link) => r.linkGaps.some((g) => g.link === link) || r.list.some((i) => i.link === link && health(i));
 const linkNames = (r) => [...new Set(r.list.filter((i) => i.link).map((i) => i.link).concat(r.linkGaps.map((g) => g.link)))].sort();
 const isCollapsed = (r) => (linkNames(r).length > 8) !== state.toggled.has(r.id);
 
@@ -304,7 +304,6 @@ function renderAttention() {
     if (h && h.kind === "state") add("warn", h.word, label, "", () => openInstance(i));
     const latest = behind(i);
     if (latest && !(h && h.kind === "failed")) add("warn", "Behind its branch", label, `Serves ${short(i.applied)}, branch at ${short(latest)}.`, () => openInstance(i));
-    for (const p of i.ungranted) add("warn", "Provider not granted", label, `Asks for ${p}, and runs without it.`, () => openInstance(i));
   }
   const capped = model.instances.filter((i) => i.warning);
   for (const pusher of new Set(capped.map((i) => i.pusher))) {
@@ -352,7 +351,6 @@ function cellHtml(i) {
   return `<button class="cell${state.openKey === keyOf(i) ? " open" : ""}" data-click="${onClick(() => openInstance(i))}" aria-label="${esc(nameOf(i))}${i.link ? " " + esc(i.link) : ""} on ${esc(i.branch)}${you ? ", you use this" : ""}">`
     + (you && i.branch !== model.base ? `<span class="you-mark">you</span>` : "")
     + (h ? `<span class="state-${h.tone}">${esc(h.word)}</span>` : "")
-    + (i.ungranted.length ? `<span class="state-warn">Provider not granted</span>` : "")
     + (i.hidden ? `<span class="meta">no grant</span>` : `<code class="rev">${esc(short(rev))}</code>`)
     + (latest ? `<span class="meta">latest ${code(short(latest))}</span>` : "")
     + (i.hidden ? "" : `<span class="meta">${i.servedAt ? "since " + esc(day(i.servedAt)) : ""}${others ? ` · ${others} selected it` : ""}</span>`)
@@ -448,7 +446,7 @@ function renderLinks() {
     const program = (list.find((i) => i.applied) || {}).applied || (broken[0] || {}).revision;
     const rows = list.map((i) => {
       const h = health(i);
-      const shownState = h ? `<span class="state-${h.tone}">${esc(h.word)}</span>` : i.ungranted.length ? `<span class="state-warn">Provider not granted</span>` : `<span class="muted">${i.servedAt ? "since " + esc(day(i.servedAt)) : "serving"}</span>`;
+      const shownState = h ? `<span class="state-${h.tone}">${esc(h.word)}</span>` : `<span class="muted">${i.servedAt ? "since " + esc(day(i.servedAt)) : "serving"}</span>`;
       if (i.hidden) return `<tr data-click="${onClick(() => openInstance(i))}"><td>${code(i.link)}</td><td class="muted" colspan="${whole ? 5 : 4}">no grant</td><td>${shownState}</td></tr>`;
       return `<tr data-click="${onClick(() => openInstance(i))}"><td>${code(i.link)}</td><td>${esc(i.linkedRepository)}<span class="small muted">at ${code(short(i.linkedRevision))}</span></td><td title="${esc(i.trackedBranch)}">${code(shortBranch(i.trackedBranch))}</td><td>${code(i.database)}</td><td>${esc(firstName(i.linkedWatcher) || "nobody")}</td>${whole ? `<td>${esc(i.linkedReach.map(firstName).join(", "))}</td>` : ""}<td>${shownState}</td></tr>`;
     }).join("") + broken.map((g) => `<tr data-click="${onClick(() => openLinkGap(r, g))}"><td>${code(g.link)}</td><td>${esc(g.linkedRepository)}</td><td class="muted">—</td><td class="muted">—</td><td></td>${whole ? `<td></td>` : ""}<td><span class="state-danger">No runner</span></td></tr>`).join("");
@@ -574,7 +572,6 @@ function openInstance(i) {
   if (h && h.kind === "unserved") problems.push({ tone: "", text: "Its server has not registered since its sandbox started." });
   if (h && h.kind === "gone") problems.push({ tone: "danger", text: "OpenShell has no sandbox for it." });
   if (h && h.kind === "failed") problems.push({ tone: "danger", text: esc(i.failed.message) });
-  for (const p of i.ungranted) problems.push({ tone: "", text: `Asks for ${code(p)}: not granted, runs without it.` });
   if (i.row.watchFailed) problems.push({ tone: "danger", text: esc(i.row.watchFailed) });
   const status = i.serving ? `Serving since ${when(i.servedAt)}.` : (h ? h.word + "." : "");
   const latest = behind(i);
@@ -597,7 +594,7 @@ function openInstance(i) {
     panelHead(`${esc(name)}${i.link ? " / " + esc(i.link) : ""} on ${code(i.branch)}`)
     + `<p class="panel-status">${esc(status)}${you ? " You're using it." : ""}</p>`
     + problems.map((p) => `<p class="problem ${p.tone}">${p.text}</p>`).join("")
-    + `<h3>Version</h3><dl>${version}${called}</dl>`
+    + `<h3>Version</h3><dl>${version}${called}${i.ungranted.length ? `<dt>Provider</dt><dd>Asks for ${i.ungranted.map(code).join(", ")}, not granted</dd>` : ""}</dl>`
     + change
     + `<h3>Data</h3><dl><dt>Database</dt><dd>${code(i.database)}${i.database === installationDb() ? " (installation database)" : ""}</dd>`
     + `<dt>Shared with</dt><dd>${i.link || !shared.length ? "No other server" : [...new Set(shared.map(nameOf))].map(esc).join(", ") + ", each in its own schema"}</dd></dl>`
