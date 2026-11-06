@@ -134,6 +134,8 @@ table.plain { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 .panel table.plain { font-size: 12.5px; }
 .panel table.plain td, .panel table.plain th { padding: 4px 8px 4px 0; }
 .panel tr[data-click] { cursor: pointer; }
+.history { color: var(--accent); }
+.history:hover { text-decoration: underline; }
 .actions { display: grid; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .btn { border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px; text-align: center; font-size: 13px; }
 .btn:hover, .btn:focus-visible { border-color: var(--accent); }
@@ -554,6 +556,15 @@ function logsButton(i) {
 const again = (find, open) => () => { const fresh = find(); if (fresh) open(fresh); else closePanel(); };
 const rowAgain = (r, open) => again(() => model.rows.find((x) => x.id === r.id), open);
 
+// Opens the Repo App on what was pushed to the branch behind an instance, at what it serves.
+function openHistory(i) {
+  const query = new URLSearchParams(i.link
+    ? { repository: i.linkedRepositoryId, branch: i.trackedBranch }
+    : { repository: i.row.id, branch: i.branch });
+  const revision = i.link ? i.linkedRevision : i.serving || i.applied;
+  if (revision) query.set("revision", revision);
+  veoveoApp.openLink(`/apps/repo/activity?${query}`).catch(showError);
+}
 function openInstance(i) {
   const instanceAgain = again(() => model.instances.find((x) => keyOf(x) === keyOf(i)), openInstance);
   const name = nameOf(i);
@@ -594,7 +605,7 @@ function openInstance(i) {
     panelHead(`${esc(name)}${i.link ? " / " + esc(i.link) : ""} on ${code(i.branch)}`)
     + `<p class="panel-status">${esc(status)}${you ? " You're using it." : ""}</p>`
     + problems.map((p) => `<p class="problem ${p.tone}">${p.text}</p>`).join("")
-    + `<h3>Version</h3><dl>${version}${called}${i.ungranted.length ? `<dt>Provider</dt><dd>Asks for ${i.ungranted.map(code).join(", ")}, not granted</dd>` : ""}</dl>`
+    + `<h3>Version</h3><dl>${version}<dt>Pushes</dt><dd><button class="history" data-click="${onClick(() => openHistory(i))}">See what was pushed</button></dd>${called}${i.ungranted.length ? `<dt>Provider</dt><dd>Asks for ${i.ungranted.map(code).join(", ")}, not granted</dd>` : ""}</dl>`
     + change
     + `<h3>Data</h3><dl><dt>Database</dt><dd>${code(i.database)}${i.database === installationDb() ? " (installation database)" : ""}</dd>`
     + `<dt>Shared with</dt><dd>${i.link || !shared.length ? "No other server" : [...new Set(shared.map(nameOf))].map(esc).join(", ") + ", each in its own schema"}</dd></dl>`
@@ -690,7 +701,21 @@ async function load(scope) {
   closePanel();
   render();
   if (again) { try { again(); } catch { closePanel(); } }
+  openAsked();
 }
+// An App can open this page at an instance, as `repository`, `branch` and `link`.
+function openAsked() {
+  const asked = state.asked;
+  if (!asked || !model) return;
+  state.asked = null;
+  const found = model.instances.find((i) => i.row.id === asked.repository && i.branch === asked.branch && (i.link || "") === (asked.link || ""));
+  if (found && !found.hidden) openInstance(found);
+}
+addEventListener("message", (event) => {
+  if (event.source !== window.parent || !event.data || event.data.method !== "ui/notifications/tool-input") return;
+  state.asked = event.data.params?.arguments || null;
+  openAsked();
+});
 const read = (scope) => load(scope).catch((error) => {
   showError(scope === "tenant" ? `The Hub did not answer the whole factory: ${error.message || error}` : error);
 });

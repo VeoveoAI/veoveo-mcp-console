@@ -95,6 +95,9 @@ bridge into it when it starts; the look follows that crate's written values. `fa
 `select`, `watch` and `logs` are linked to it for the model and the App. The Hub's home
 page lists it as it lists any App.
 
+An instance's panel links to the [Repo App](https://github.com/VeoveoAI/veoveo-mcp-repo/blob/main/crates/veoveo-mcp-repo/DESIGN.md), `/apps/repo/activity`, on the branch behind
+it at what it serves. The page itself opens at an instance from `repository`, `branch` and `link` in its address, which the host hands it as `ui/notifications/tool-input`.
+
 A dev environment is a branch name: the Hub gives servers on one branch name one database,
 and a link one of its own. So the page is one grid, with servers down the side and branches
 across the top. A cell is an instance and shows the revision it serves, a column names its
