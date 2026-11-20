@@ -119,7 +119,7 @@ docker build --target runtime -t veoveo-mcp-console:<version> \
 docker build --target check .
 ```
 
-The `check` stage checks the `.sqlx` metadata against a PostgreSQL 18.6 database with
+The `check` stage checks the `.sqlx` metadata against a PostgreSQL 18.7 database with
 the pinned core's kernel migrations, then runs rustfmt, clippy with warnings denied,
 cargo-deny, cargo-hack on each feature and the nextest `ci` profile. It runs the same
 way on macOS and Linux.
